@@ -150,6 +150,7 @@ export function extractTitleTarget(title) {
     /(?<![\d/])\d{1,2}\s*[~\-]\s*\d{1,2}\s*학년/g,
     /(?<![\d/])\d{1,2}\s*학년/g,
     /(?:만\s*)?\d{1,2}\s*(?:[~\-]\s*\d{1,2})?\s*세(?:\s*이상|\s*이하)?/g,
+    /\d{1,3}\s*(?:[~\-]\s*\d{1,3})?\s*개월\s*(?:이상|이하|미만|이내)?/g,
     /저학년|중학년|고학년/g,
   ];
   let rest = title ?? '';
@@ -208,4 +209,26 @@ export function chipLabel(course, info) {
     when = s && e && s !== e ? `${md(s)}~${md(e)}` : s ? mdw(s) : '';
   }
   return `${when}${days ? ` ${days}` : ''}`.trim() || '회차';
+}
+
+// ---- 상시 운영 -------------------------------------------------------------
+// "10월 운영 안내", "전시해설 예약"처럼 날짜가 정해진 행사가 아니라 한 달 내내 열려 있는 시설 예약.
+// 달력의 모든 날에 찍혀 숫자를 부풀리므로, 달력·목록에서 따로 모아 접어 둡니다.
+
+const STANDING_WORDS = /운영\s*안내|상시|상설|수시\s*(?:예약|운영|접수)|연중|운영\s*일정|전시\s*해설\s*예약|관람\s*예약/;
+const hm = (iso) => (iso && iso.length >= 16 ? +iso.slice(11, 13) * 60 + +iso.slice(14, 16) : null);
+const dayNum = (ymd) => Math.round(Date.parse(`${ymd}T00:00:00Z`) / 86400000);
+
+export function isStanding(course, info) {
+  if (info?.dates?.length) return false; // 날짜가 적혀 있으면 정해진 회차
+  if (STANDING_WORDS.test(course.title ?? '')) return true;
+  // 요일 정보 없이 한 달 가까이, 하루 6시간 이상 열려 있으면 상시 운영으로 봄
+  if (info?.weekdays || (course.weekdays && course.weekdays.length)) return false;
+  const s = ymdOfIso(course.classStart);
+  const e = ymdOfIso(course.classEnd);
+  if (!s || !e || !course.timeKnown) return false;
+  const a = hm(course.classStart);
+  const b = hm(course.classEnd);
+  if (a == null || b == null) return false;
+  return dayNum(e) - dayNum(s) >= 20 && b - a >= 360;
 }

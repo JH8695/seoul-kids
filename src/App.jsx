@@ -6,7 +6,7 @@ import { audienceOf, REASON_LABEL } from './lib/audience';
 import { distanceKm } from './lib/geo';
 import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
 import { toYmd, dowOfYmd } from './lib/calendar';
-import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, titleInfo } from './lib/title';
+import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
 import { useSettings } from './lib/useSettings';
 import { useCourses } from './lib/useCourses';
 import { DAY_LABELS, DAY_ORDER, classWeekdays, passesDays } from './lib/weekdays';
@@ -63,6 +63,8 @@ export default function App() {
   const [freeOnly, setFreeOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [favOnly, setFavOnly] = useState(false);
+  const [showHidden, setShowHidden] = useState(false); // 숨긴 프로그램만 보기(되살리기용)
+  const [toast, setToast] = useState(null); // 방금 숨긴 프로그램 { key, title } — 되돌리기 안내
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const days = settings.days ?? [];
@@ -72,10 +74,17 @@ export default function App() {
     setSettings({ ...settings, days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d] });
   const toggleCat = (id) => setCats((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
   const favs = useMemo(() => new Set(settings.favs ?? []), [settings.favs]);
+  const hiddenSet = useMemo(() => new Set(settings.hidden ?? []), [settings.hidden]);
 
   // 샘플일 때는 샘플이 도심 쪽 기관 위주라서 처음부터 서울 전체로 보여줌
   // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
   useEffect(() => { if (!loading && meta.isSample) setScope('all'); }, [loading, meta.isSample]);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const id = setTimeout(() => setToast(null), 7000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   const nowMs = useMemo(() => Date.now(), []);
   const now = useMemo(() => new Date(nowMs), [nowMs]);
@@ -159,6 +168,7 @@ export default function App() {
           tinfo,
           daySet,
           online,
+          standing: isStanding(c, tinfo),
           needDetail: !daySet && !tinfo.dates && !!multiDay,
           groupKey: groupKeyOf(c),
           chip: chipLabel(c, tinfo),
@@ -185,6 +195,16 @@ export default function App() {
     setSettings({ ...settings, favs: [...next] });
   };
 
+  // "관심 없어요": 같은 프로그램(모든 회차)을 목록과 달력에서 숨김. 찜해 둔 것이면 찜도 풀림
+  const hideItem = (members) => {
+    const key = members[0].groupKey;
+    const nextFavs = new Set(favs);
+    members.forEach((m) => { nextFavs.delete(m.groupKey); nextFavs.delete(m.course.id); });
+    setSettings({ ...settings, hidden: [...new Set([...(settings.hidden ?? []), key])], favs: [...nextFavs] });
+    setToast({ key, title: members[0].course.title });
+  };
+  const unhide = (key) => setSettings((s) => ({ ...s, hidden: (s.hidden ?? []).filter((k) => k !== key) }));
+
   // 검색어: 프로그램명·장소에서 찾음 (띄어쓰기·대소문자 무시)
   const norm = (x) => (x ?? '').toLowerCase().replace(/\s+/g, '');
   const q = norm(query);
@@ -195,6 +215,8 @@ export default function App() {
       const c = e.course;
       if (isOver(e)) return false; // 이미 끝난 프로그램(회차)
       if (q && !norm(`${c.title} ${c.place}`).includes(q)) return false;
+      if (showHidden) return hiddenSet.has(e.groupKey); // 숨긴 것만 보여줌(다시 보이게 하려고)
+      if (hiddenSet.has(e.groupKey)) return false;
       if (favOnly) return isFavRow(e); // 찜 목록은 구·대상·분야 조건과 상관없이 보여줌
       if (scope === 'near' && c.area && !settings.areas.includes(c.area)) return false;
       if (freeOnly && !(/무료/.test(c.pay) && !/유료/.test(c.pay))) return false;
@@ -210,11 +232,12 @@ export default function App() {
     if (id === 'open') return e.status === 'open';
     if (id === 'upcoming') return e.status === 'upcoming';
     if (id === 'soon') return e.status === 'open' && e.course.applyEnd && daysUntil(e.course.applyEnd, now) <= 3;
-    return e.status === 'open' || e.status === 'upcoming' || showClosed || favOnly;
+    return e.status === 'open' || e.status === 'upcoming' || showClosed || favOnly || showHidden;
   };
-  const countItems = (rows) => new Set(rows.map((e) => e.groupKey)).size; // 묶음 기준 개수
+  // 묶음 기준 개수 (상시 운영은 따로 세므로 뺌)
+  const countItems = (rows) => new Set(rows.filter((e) => !e.standing).map((e) => e.groupKey)).size;
 
-  const dep = [scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, activeIds, effDays, todayYmd];
+  const dep = [scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, showHidden, activeIds, effDays, todayYmd];
   /* eslint-disable */
   const base = useMemo(() => pre(false), [enriched, cats, ...dep]);
   const baseNoCats = useMemo(() => pre(true), [enriched, ...dep]);
@@ -226,12 +249,12 @@ export default function App() {
     const m = {};
     TABS.forEach((t) => { m[t.id] = countItems(base.filter((e) => inTab(e, t.id))); });
     return m;
-  }, [base, showClosed, favOnly]);
+  }, [base, showClosed, favOnly, showHidden]);
   const catCounts = useMemo(() => {
     const per = {};
-    baseNoCats.filter((e) => inTab(e, tab)).forEach((e) => (e.course.tags ?? []).forEach((t) => { (per[t] ??= new Set()).add(e.groupKey); }));
+    baseNoCats.filter((e) => inTab(e, tab) && !e.standing).forEach((e) => (e.course.tags ?? []).forEach((t) => { (per[t] ??= new Set()).add(e.groupKey); }));
     return Object.fromEntries(Object.entries(per).map(([k, v]) => [k, v.size]));
-  }, [baseNoCats, tab, showClosed, favOnly]);
+  }, [baseNoCats, tab, showClosed, favOnly, showHidden]);
 
   // 정렬한 회차 목록 (달력은 이 목록을 회차 하나하나로 씀)
   const list = useMemo(() => {
@@ -239,7 +262,7 @@ export default function App() {
     const nextAction = (e) => (e.status === 'open' ? ms(e.course.applyEnd) : e.status === 'upcoming' ? ms(e.course.applyStart) : Infinity);
     const key = sort === 'use' ? (e) => Math.max(ms(e.course.classStart), nowMs) : nextAction;
     return [...rows].sort((a, b) => key(a) - key(b) || ms(a.course.classStart) - ms(b.course.classStart));
-  }, [base, tab, sort, showClosed, favOnly]);
+  }, [base, tab, sort, showClosed, favOnly, showHidden]);
 
   // 같은 프로그램의 회차끼리 묶음 (목록에서 처음 나오는 위치에 놓음)
   const items = useMemo(() => {
@@ -252,11 +275,15 @@ export default function App() {
     }));
   }, [list]);
 
+  // 상시 운영(한 달 내내 열려 있는 시설 예약)은 따로 모아 맨 아래 섹션으로
+  const mainItems = useMemo(() => items.filter((it) => !it.members.every((m) => m.standing)), [items]);
+  const standingItems = useMemo(() => items.filter((it) => it.members.every((m) => m.standing)), [items]);
+
   // "가까운 구 순": 구별로 묶고, 집에서 가까운 구부터
   const areaBuckets = useMemo(() => {
     if (sort !== 'area') return null;
     const m = new Map();
-    items.forEach((it) => {
+    mainItems.forEach((it) => {
       const a = it.members[0].course.area || '';
       if (!m.has(a)) m.set(a, []);
       m.get(a).push(it);
@@ -268,8 +295,12 @@ export default function App() {
         return da < db ? -1 : 1;
       })
       .map(([area, its]) => ({ area, items: its }));
-  }, [items, sort]);
+  }, [mainItems, sort]);
 
+  const hiddenCount = useMemo(
+    () => new Set(enriched.filter((e) => !isOver(e) && hiddenSet.has(e.groupKey)).map((e) => e.groupKey)).size,
+    [enriched, hiddenSet, todayYmd],
+  );
   const favCount = useMemo(
     () => new Set(enriched.filter((e) => !isOver(e) && isFavRow(e)).map((e) => e.groupKey)).size,
     [enriched, favs, todayYmd],
@@ -296,6 +327,9 @@ export default function App() {
       online={e.online}
       fav={isFavRow(e)}
       onToggleFav={() => toggleFav([e])}
+      standing={e.standing}
+      hiddenMode={showHidden}
+      onHide={() => (showHidden ? unhide(e.groupKey) : hideItem([e]))}
     />
   );
 
@@ -307,6 +341,8 @@ export default function App() {
         fav={it.members.some(isFavRow)}
         onToggleFav={() => toggleFav(it.members)}
         home={HOME}
+        hiddenMode={showHidden}
+        onHide={() => (showHidden ? unhide(it.key) : hideItem(it.members))}
       />
     ) : (
       renderCard(it.members[0])
@@ -469,6 +505,9 @@ export default function App() {
           <label><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> 예약마감·종료 포함</label>
           <label><input type="checkbox" checked={includeOpen} onChange={(e) => setIncludeOpen(e.target.checked)} /> 대상 "제한없음"도 포함{openHidden > 0 && !includeOpen ? ` (${openHidden})` : ''}</label>
           <label><input type="checkbox" checked={showAllTargets} onChange={(e) => setShowAllTargets(e.target.checked)} /> 대상 안 맞는 것 포함 (단체·장애인 등)</label>
+          {(hiddenCount > 0 || showHidden) && (
+            <label><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> 숨긴 것 다시 보기 ({hiddenCount})</label>
+          )}
         </div>
       </nav>
 
@@ -479,21 +518,31 @@ export default function App() {
               <h3>조건에 맞는 프로그램이 없어요</h3>
               <p>
                 수집된 {courses.length}건 중 지금 조건에 맞는 게 없어요.
+                {showHidden && ' 숨긴 프로그램이 없어요.'}
                 {favOnly && ' 찜한 프로그램이 없거나 검색어에 맞는 게 없어요.'}
                 {scope === 'near' && !favOnly && ' "서울 전체"로 바꿔 보세요.'}
                 {!includeOpen && openHidden > 0 && ` 대상이 "제한없음"인 ${openHidden}건은 숨겨져 있어요.`}
                 {q && ' 검색어를 지워 보세요.'}
               </p>
             </div>
-          ) : areaBuckets ? (
-            areaBuckets.map((b) => (
-              <details className="area-group" key={b.area || 'none'} open>
-                <summary>{b.area || '구 미표기'} <span className="n">{b.items.length}</span></summary>
-                <div className="area-items">{b.items.map(renderItem)}</div>
-              </details>
-            ))
           ) : (
-            items.map(renderItem)
+            <>
+              {mainItems.length === 0 && <p className="hint">날짜가 정해진 프로그램은 없고, 상시 운영만 있어요.</p>}
+              {areaBuckets
+                ? areaBuckets.map((b) => (
+                    <details className="area-group" key={b.area || 'none'} open>
+                      <summary>{b.area || '구 미표기'} <span className="n">{b.items.length}</span></summary>
+                      <div className="area-items">{b.items.map(renderItem)}</div>
+                    </details>
+                  ))
+                : mainItems.map(renderItem)}
+              {standingItems.length > 0 && (
+                <details className="standing">
+                  <summary>상시 운영 {standingItems.length}개 · 눌러서 펼치기</summary>
+                  <div className="area-items">{standingItems.map(renderItem)}</div>
+                </details>
+              )}
+            </>
           )}
           <details className="foot">
             <summary>수집 현황 (총 {courses.length}건)</summary>
@@ -531,6 +580,13 @@ export default function App() {
         <div className="viewbar">
           <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')}>달력</button>
           <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>목록</button>
+        </div>
+      )}
+
+      {toast && (
+        <div className="toast" role="status">
+          <span className="toast-text">숨겼어요 · {toast.title}</span>
+          <button type="button" onClick={() => { unhide(toast.key); setToast(null); }}>되돌리기</button>
         </div>
       )}
 

@@ -11,12 +11,16 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
   const [cursor, setCursor] = useState(() => ({ y: +today.slice(0, 4), m: +today.slice(5, 7) }));
   const [sel, setSel] = useState(today);
 
+  // 상시 운영(한 달 내내 열려 있는 시설 예약)은 달력 숫자에서 빼고, 선택한 날 아래에 따로 모아 접어 둠
+  const normalRows = useMemo(() => rows.filter((r) => !r.standing), [rows]);
+  const standingRows = useMemo(() => rows.filter((r) => r.standing), [rows]);
+
   // 날짜 → 그날 열리는 프로그램들 ({ row, loose })
   const { byDate, anyEstimated, anyLoose } = useMemo(() => {
     const map = new Map();
     let est = false;
     let loose = false;
-    for (const row of rows) {
+    for (const row of normalRows) {
       const o = occurrenceDates(row.course, row.daySet, today, row.tinfo);
       if (o.estimated && o.dates.length > 1) est = true;
       if (o.loose && o.dates.length > 1) loose = true;
@@ -26,7 +30,7 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
       }
     }
     return { byDate: map, anyEstimated: est, anyLoose: loose };
-  }, [rows, today]);
+  }, [normalRows, today]);
 
   const key = monthKey(cursor.y, cursor.m);
   const cells = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
@@ -58,6 +62,16 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
   const sure = sorted.filter((x) => !x.loose);
   const loose = sorted.filter((x) => x.loose);
   const selDow = sel ? dowOfYmd(sel) : null;
+  const standingToday = useMemo(
+    () =>
+      standingRows.filter((r) => {
+        if (!r.course.classStart) return false;
+        const s = toYmd(r.course.classStart);
+        const e = r.course.classEnd ? toYmd(r.course.classEnd) : s;
+        return sel >= s && sel <= e;
+      }),
+    [standingRows, sel],
+  );
 
   return (
     <div className={`cal${compact ? ' compact' : ''}`}>
@@ -146,6 +160,12 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
                 </>
               )}
             </>
+          )}
+          {standingToday.length > 0 && (
+            <details className="standing">
+              <summary>상시 운영 {standingToday.length}개 · 눌러서 펼치기</summary>
+              <div className={compact ? 'cal-rows' : 'cal-day-list'}>{standingToday.map((r) => renderItem(r))}</div>
+            </details>
           )}
         </section>
       )}

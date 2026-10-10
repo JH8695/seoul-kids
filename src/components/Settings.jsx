@@ -81,6 +81,12 @@ export default function Settings({ settings, setSettings, now, onClose }) {
           </button>
         </fieldset>
 
+        {(settings.hidden?.length ?? 0) > 0 && (
+          <button className="outline" onClick={() => setSettings({ ...settings, hidden: [] })}>
+            숨긴 프로그램 모두 다시 보이게 하기 ({settings.hidden.length})
+          </button>
+        )}
+
         <p className="hint">설정은 이 기기의 브라우저에만 저장되고 어디로도 전송되지 않아요.</p>
         <button className="primary" onClick={onClose}>닫기</button>
       </div>

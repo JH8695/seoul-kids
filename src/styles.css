@@ -357,3 +357,20 @@ body { overflow-x: hidden; }
 .area-group > summary .n { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 4px; }
 .area-items { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 8px; min-width: 0; }
 .area-items > * { flex-shrink: 0; min-width: 0; }
+
+/* ===== 숨기기 · 상시 운영 ===== */
+.card-foot { display: flex; justify-content: center; margin-top: 4px; }
+.hide-btn { border: 0; background: transparent; color: var(--muted); font-size: 13px; padding: 10px 12px; text-decoration: underline; }
+.standing { border: 1px dashed var(--line); border-radius: 12px; padding: 4px 12px; min-width: 0; }
+.standing > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--muted); padding: 8px 0; }
+.standing[open] > summary { color: var(--ink); }
+.standing > .cal-day-list, .standing > .cal-rows, .standing > .area-items { padding-bottom: 10px; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 40;
+  bottom: calc(68px + var(--safe-b)); width: min(420px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px;
+  background: var(--ink); color: var(--bg); border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.3);
+}
+.toast-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.toast button { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; padding: 6px 4px; }
+@media (min-width: 900px) { .toast { bottom: 16px; } }

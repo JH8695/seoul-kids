@@ -25,6 +25,15 @@ const cases = [
   ['초등 저학년', 'nomatch', 'match'],
   ['초등 고학년(4~6학년)', 'nomatch', 'nomatch'],
   ['', 'check', 'check'],
+  // 개월 · 영아
+  ['유아(영아(36개월 미만) 동반 가족)', 'nomatch', 'nomatch'],
+  ['12~24개월', 'nomatch', 'nomatch'],
+  ['36개월 미만', 'nomatch', 'nomatch'],
+  ['영아 동반 가족', 'nomatch', 'nomatch'],
+  ['영아(0~2세)', 'nomatch', 'nomatch'],
+  ['60개월 이상', 'match', 'match'],
+  ['84개월 이상', 'nomatch', 'match'],
+  ['유아와 영아 동반 가족', 'match', 'match'], // 유아가 함께 적힌 경우는 그대로 해당
 ];
 for (const [t, k, e] of cases) {
   assert.equal(K(t), k, `유치원: "${t}" → ${K(t)} (기대 ${k})`);

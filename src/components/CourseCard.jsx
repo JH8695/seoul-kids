@@ -34,7 +34,7 @@ export function KidPills({ kidMatches }) {
  */
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
-  needDetail, online, chips,
+  needDetail, online, standing, chips, onHide, hiddenMode,
 }) {
   const [open, setOpen] = useState(false);
   const [imgOk, setImgOk] = useState(true);
@@ -91,8 +91,9 @@ export default function CourseCard({
 
       {chips}
 
-      {(tags.length > 0 || online) && (
+      {(tags.length > 0 || online || standing) && (
         <div className="card-tags">
+          {standing && <span className="tag">🔄 상시 운영</span>}
           {online && <span className="tag">💻 온라인</span>}
           {tags.map((t) => (
             <span key={t} className="tag">{CAT[t].emoji} {CAT[t].label}</span>
@@ -140,6 +141,14 @@ export default function CourseCard({
       <a className="apply" href={course.url} target="_blank" rel="noopener noreferrer">
         서울시 예약 사이트에서 보기·신청
       </a>
+
+      {onHide && (
+        <div className="card-foot">
+          <button type="button" className="hide-btn" onClick={onHide}>
+            {hiddenMode ? '다시 보이게 하기' : '관심 없어요 (숨기기)'}
+          </button>
+        </div>
+      )}
     </article>
   );
 }

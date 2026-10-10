@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { titleInfo, extractTitleTarget, isOnline, stripTitle, groupKeyOf, chipLabel } from '../src/lib/title.js';
+import { titleInfo, extractTitleTarget, isOnline, stripTitle, groupKeyOf, chipLabel, isStanding } from '../src/lib/title.js';
 
 const C = (title, start, end, extra = {}) => ({
   title, classStart: `${start}T00:00:00+09:00`, classEnd: `${end}T00:00:00+09:00`, place: '온라인', targetText: '제한없음(서울시민 누구나)', ...extra,
@@ -75,5 +75,24 @@ assert.equal(stripTitle('[10월] 정비사업 아카데미 2차 (10/20 성동구
 // ---- 칩 이름 ----
 assert.equal(chipLabel(C('a(12/7)', '2026-10-06', '2026-12-07'), titleInfo(C('a(12/7)', '2026-10-06', '2026-12-07'))), '12/7(월)');
 assert.equal(chipLabel(C('(10월) 세곡천 (휴일, 토)', '2026-09-15', '2026-10-31'), titleInfo(C('(10월) 세곡천 (휴일, 토)', '2026-09-15', '2026-10-31'))), '10월 토');
+
+// ---- 개월 ----
+assert.match(extractTitleTarget('[12~24개월] 아기 놀이'), /12~24개월/);
+
+// ---- 상시 운영 ----
+const S = (title, start, end, from, to, extra = {}) => ({
+  title, classStart: `${start}T${from}:00+09:00`, classEnd: `${end}T${to}:00+09:00`, timeKnown: true, ...extra,
+});
+const st = (c) => isStanding(c, titleInfo(c));
+assert.equal(st(S('서울형 키즈카페 한성백제박물관점 10월 운영 안내', '2026-10-01', '2026-10-30', '09:30', '17:30')), true);
+assert.equal(st(S('2026 백인제가옥 전시해설 예약', '2026-10-01', '2026-10-31', '10:00', '17:00')), true);
+assert.equal(st(S('어린이 상설 체험 프로그램', '2026-10-01', '2026-10-31', '10:00', '12:00')), true);
+// 행사는 상시 운영이 아님
+assert.equal(st(S('(10월) 속닥속닥 세곡천 (휴일, 토)', '2026-09-15', '2026-10-31', '10:00', '15:30')), false);
+assert.equal(st(S('서울숲 곤충탐사 (10/18)', '2026-10-18', '2026-10-18', '10:00', '17:00')), false);
+assert.equal(st(S('미니장승만들기(매주 토 10:30~12:30)', '2026-03-09', '2026-10-31', '10:30', '12:30')), false);
+assert.equal(st(S('[월드컵공원] 반딧불이 해설(10월)', '2026-09-28', '2026-10-27', '10:30', '11:00')), false);
+assert.equal(st(S('짧은 행사', '2026-10-01', '2026-10-05', '09:00', '18:00')), false); // 기간이 짧음
+assert.equal(st(S('종일 체험', '2026-10-01', '2026-10-31', '00:00', '23:59', { timeKnown: false })), false); // 시간을 모르면 판단 안 함
 
 console.log('title.test.mjs OK');
