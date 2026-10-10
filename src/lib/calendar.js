@@ -17,27 +17,37 @@ const fmt = (ms) => {
 
 /**
  * 프로그램이 열리는 날짜 목록 ('YYYY-MM-DD'). 오늘 이전 날짜는 뺍니다.
- * - 하루짜리: 그 날
- * - 요일을 알면(daySet): 이용 기간 안에서 그 요일인 날마다
- * - 요일을 모르는 기간: 기간 안의 모든 날을 "loose"(기간 중 운영, 요일은 상세 확인)로 표시
- * estimated: "매주 ○"처럼 적혀 있지 않아 요일 반복을 추정했거나, "격주"라서 실제로는 격주인 경우
+ * 우선순위:
+ *   1) 제목에 날짜가 적혀 있으면(tinfo.dates) 그 날들만
+ *   2) 제목에 "10월" 같은 달/기간이 있으면 그 구간 안에서만 (tinfo.intervals)
+ *   3) 요일을 알면(daySet) 이용 기간 안에서 그 요일인 날마다
+ *   4) 요일을 모르는 기간은 기간 안의 모든 날을 "loose"(기간 중 운영, 요일은 상세 확인)로 표시
+ * estimated: 제목·설명에 요일이 적혀 있지 않은데 시작·종료 요일이 같아서 반복을 추정한 경우,
+ *            또는 "격주"라서 실제로는 격주로 열리는 경우
  */
-export function occurrenceDates(course, daySet, todayYmd = toYmd(new Date())) {
+export function occurrenceDates(course, daySet, todayYmd = toYmd(new Date()), tinfo = null) {
+  if (tinfo?.dates?.length) {
+    return { dates: tinfo.dates.filter((d) => d >= todayYmd), estimated: false, loose: false };
+  }
   if (!course.classStart) return { dates: [], estimated: false, loose: false };
   const s = toYmd(course.classStart);
   const e = course.classEnd ? toYmd(course.classEnd) : s;
   if (e < todayYmd) return { dates: [], estimated: false, loose: false };
   if (e <= s) return { dates: [s], estimated: false, loose: false };
-  const from = s < todayYmd ? todayYmd : s;
-  const horizon = fmt(parse(from) + 150 * 86400000); // 너무 먼 미래는 그리지 않음
-  const to = e < horizon ? e : horizon;
   const biweekly = /격주/.test(course.recurrence || '');
-  const estimated = biweekly || (!course.recurrence && !(course.weekdays && course.weekdays.length));
+  const explicit = !!(tinfo?.weekdays || (course.weekdays && course.weekdays.length) || course.recurrence);
+  const estimated = biweekly || (!!daySet && !explicit);
+  const intervals = tinfo?.intervals?.length ? tinfo.intervals : [[s, e]];
+  const horizon = fmt(parse(todayYmd) + 150 * 86400000); // 너무 먼 미래는 그리지 않음
   const dates = [];
-  let t = parse(from);
-  const end = parse(to);
-  for (let i = 0; t <= end && i < 400; i++, t += 86400000) {
-    if (!daySet || daySet.has(new Date(t).getUTCDay())) dates.push(fmt(t));
+  for (const [a, b] of intervals) {
+    const from = a < todayYmd ? todayYmd : a;
+    const to = b < horizon ? b : horizon;
+    let t = parse(from);
+    const end = parse(to);
+    for (let i = 0; t <= end && i < 400; i++, t += 86400000) {
+      if (!daySet || daySet.has(new Date(t).getUTCDay())) dates.push(fmt(t));
+    }
   }
   return { dates, estimated, loose: !daySet };
 }

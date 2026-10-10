@@ -24,7 +24,7 @@ assert.equal(parseWeekdays('전시해설', '매주 월요일은 휴관입니다'
 assert.ok(by(cul, '장승').tags.includes('make'));
 assert.ok(by(cul, '전시해설').tags.includes('museum'));
 assert.ok(by(edu, '반딧불이').tags.includes('nature'));
-assert.ok(by(edu, '반딧불이').tags.length >= 1);
+assert.ok(by(edu, '반딧불이').tags.includes('science')); // 서울시 분류가 "자연/과학"이면 두 분야에 모두
 assert.ok(by(edu, '경희궁').tags.includes('history'));
 
 // 상태 (2026-10-10 기준)

@@ -320,3 +320,40 @@ i.cal-pill { min-width: 12px; height: 12px; line-height: 12px; padding: 0; verti
 .heart { border: 0; background: transparent; font-size: 24px; line-height: 1; padding: 0 2px; color: var(--muted); }
 .heart.on { color: #c0392b; }
 .pill.bad { background: #f8d9d6; color: #8a1f17; }
+
+/* ===== 좁은 화면(글자를 크게 설정한 폰 포함)에서 좌우 스크롤이 생기지 않게 ===== */
+body { overflow-x: hidden; }
+.app { overflow-x: clip; max-width: 100%; }
+.filters { grid-template-columns: minmax(0, 1fr); }
+.filters > *, .panes, .pane-list > *, .pane-cal-m, .pane-right, .card, .cal { min-width: 0; }
+.tabs button { min-width: 0; padding-left: 0; padding-right: 0; white-space: nowrap; }
+.card, .cal-row, .snip p { overflow-wrap: anywhere; }
+@media (max-width: 359px) {
+  .tabs button { font-size: 12.5px; }
+  .tabs .n { display: none; }
+}
+
+/* 달력 아래 목록(PC): 대상 줄 */
+.cal-row { grid-template-columns: auto minmax(0, 1fr); }
+.cal-row-target { grid-column: 2; font-size: 12px; color: var(--muted); }
+.cal-row-target .kid-pills { margin-left: 4px; }
+
+/* ===== 같은 프로그램의 여러 회차(칩) · 구별 묶음 ===== */
+.gbox { margin: 0 0 10px; }
+.gnote { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.gnote-hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+.gchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gchip {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 6px 11px; font-size: 13.5px; font-weight: 600; color: var(--closed);
+}
+.gchip.open { border-color: var(--open); color: var(--open); background: var(--open-bg); }
+.gchip.upcoming { border-color: var(--upcoming); color: var(--upcoming); background: var(--upcoming-bg); }
+.gchip.sel { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+.area-group > summary {
+  cursor: pointer; font-weight: 700; font-size: 16px; padding: 8px 2px; list-style-position: inside;
+}
+.area-group > summary .n { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 4px; }
+.area-items { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 8px; min-width: 0; }
+.area-items > * { flex-shrink: 0; min-width: 0; }

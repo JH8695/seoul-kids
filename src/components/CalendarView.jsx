@@ -17,7 +17,7 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
     let est = false;
     let loose = false;
     for (const row of rows) {
-      const o = occurrenceDates(row.course, row.daySet, today);
+      const o = occurrenceDates(row.course, row.daySet, today, row.tinfo);
       if (o.estimated && o.dates.length > 1) est = true;
       if (o.loose && o.dates.length > 1) loose = true;
       for (const d of o.dates) {

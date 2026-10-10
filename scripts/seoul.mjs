@@ -91,9 +91,9 @@ const RE = {
 export function classify({ minClass = '', title = '', place = '' }) {
   const text = `${title} ${place}`;
   const tags = new Set();
-  const isNature = RE.nature.test(text);
-  if (isNature) tags.add('nature');
-  if (RE.science.test(text) || (minClass.includes('과학') && !isNature)) tags.add('science');
+  // 서울시 분류가 "자연/과학"이면 숲·자연과 과학 두 분야에 모두 붙임
+  if (RE.nature.test(text) || minClass.includes('자연')) tags.add('nature');
+  if (RE.science.test(text) || minClass.includes('과학')) tags.add('science');
   if (minClass.includes('전시') || RE.museum.test(text)) tags.add('museum');
   if (minClass.includes('역사') || RE.history.test(text)) tags.add('history');
   if (minClass.includes('체험') || RE.make.test(title)) tags.add('make');
@@ -118,7 +118,8 @@ export function normalizeRow(row, source, now = Date.now()) {
   const detail = cleanText(row.DTLCONT);
   const vMin = (row.V_MIN || '').trim();
   const vMax = (row.V_MAX || '').trim();
-  const timeKnown = !!(vMin && vMax && !(vMin === '00:00' && vMax === '00:00'));
+  // 시작이 00:00 이면 실제 시간이 아니라 "시간 미정/종일"로 보고 시간을 안 보여줌
+  const timeKnown = !!(vMin && vMax && vMin !== '00:00');
   const day = (s) => (s ? s.trim().slice(0, 10) : null);
   const bg = day(row.SVCOPNBGNDT);
   const ed = day(row.SVCOPNENDDT);

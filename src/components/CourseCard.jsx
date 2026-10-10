@@ -11,7 +11,7 @@ const STATUS = {
 };
 const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
-function KidPills({ kidMatches }) {
+export function KidPills({ kidMatches }) {
   return (
     <span className="kid-pills">
       {kidMatches.map(({ kid, match }) => {
@@ -28,14 +28,20 @@ function KidPills({ kidMatches }) {
   );
 }
 
-export default function CourseCard({ course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav }) {
+/**
+ * 프로그램 카드. chips 가 있으면(같은 프로그램의 여러 회차) 제목 아래에 회차 칩을 보여줘요.
+ * onToggleFav 는 인자 없이 호출 — 어떤 항목을 찜할지는 부모가 정해요.
+ */
+export default function CourseCard({
+  course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
+  needDetail, online, chips,
+}) {
   const [open, setOpen] = useState(false);
   const [imgOk, setImgOk] = useState(true);
   const st = STATUS[status] ?? STATUS.closed;
   const startsIn = status === 'upcoming' && course.applyStart ? daysUntil(course.applyStart) : null;
   const endsIn = status === 'open' && course.applyEnd ? daysUntil(course.applyEnd) : null;
-  const needDetail = !course.weekdays && course.classEnd && course.classStart &&
-    course.classEnd.slice(0, 10) !== course.classStart.slice(0, 10);
+  const tags = (course.tags ?? []).filter((t) => CAT[t]);
 
   return (
     <article className={`card ${st.cls}`}>
@@ -54,7 +60,7 @@ export default function CourseCard({ course, status, kidMatches, targetNote, aud
           className={`heart${fav ? ' on' : ''}`}
           aria-pressed={!!fav}
           aria-label={fav ? '찜 해제' : '찜하기'}
-          onClick={() => onToggleFav(course.id)}
+          onClick={() => onToggleFav()}
         >
           {fav ? '♥' : '♡'}
         </button>
@@ -83,9 +89,12 @@ export default function CourseCard({ course, status, kidMatches, targetNote, aud
         )}
       </div>
 
-      {course.tags?.filter((t) => CAT[t]).length > 0 && (
+      {chips}
+
+      {(tags.length > 0 || online) && (
         <div className="card-tags">
-          {course.tags.filter((t) => CAT[t]).map((t) => (
+          {online && <span className="tag">💻 온라인</span>}
+          {tags.map((t) => (
             <span key={t} className="tag">{CAT[t].emoji} {CAT[t].label}</span>
           ))}
         </div>

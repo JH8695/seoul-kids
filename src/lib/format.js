@@ -35,9 +35,8 @@ export function fmtDateTime(iso) {
 export function fmtClassSchedule(c) {
   if (!c.classStart) return '일정 확인 필요';
   // 시각을 모르는 경우: 수집기가 표시했거나, 도서관 사이트가 (00:00~00:00)으로 비워 둔 경우
-  const noTime =
-    c.timeKnown === false ||
-    (fmtTime(c.classStart) === '00:00' && (!c.classEnd || fmtTime(c.classEnd) === '00:00'));
+  // 시작이 00:00 이면 실제 시간이 아니라 "시간 미정/종일"이라는 뜻이에요
+  const noTime = c.timeKnown === false || fmtTime(c.classStart) === '00:00';
   if (!c.classEnd || sameDay(c.classStart, c.classEnd)) {
     if (noTime) return fmtDate(c.classStart);
     const end = c.classEnd ? `–${fmtTime(c.classEnd)}` : '';
@@ -65,5 +64,5 @@ export function fmtFetchedAt(iso) {
 export function fmtStartTime(c) {
   if (!c.classStart || c.timeKnown === false) return '';
   const t = fmtTime(c.classStart);
-  return t === '00:00' && (!c.classEnd || fmtTime(c.classEnd) === '00:00') ? '' : t;
+  return t === '00:00' ? '' : t;
 }
