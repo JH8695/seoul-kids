@@ -383,3 +383,44 @@ body { overflow-x: hidden; }
   border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; line-height: 1; padding: 0;
 }
 .cal-hide:hover { background: #f8d9d6; color: #8a1f17; border-color: #e6aaa4; }
+
+/* ===== PC(넓은 화면): 상단 필터를 3줄로 ===== */
+.top-right { display: flex; align-items: center; gap: 14px; }
+.stamp { font-size: 12px; opacity: .75; text-align: right; line-height: 1.35; }
+.scope-hint .scope-areas { min-width: 0; }
+.opt-wrap { position: relative; margin-left: auto; flex: 0 0 auto; }
+.opt-btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 7px 12px;
+  font-weight: 600; font-size: 14px; white-space: nowrap;
+}
+.opt-btn.on { border-color: var(--ink); }
+.opt-n { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 12px; line-height: 18px; text-align: center; }
+.pop-backdrop { position: fixed; inset: 0; z-index: 29; }
+.opt-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 290px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18); display: grid; gap: 12px;
+}
+.opt-pop label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); white-space: nowrap; }
+.opt-pop input { margin: 0; }
+
+@media (min-width: 900px) {
+  .top { padding-top: calc(10px + env(safe-area-inset-top, 0px)); padding-bottom: 10px; }
+  .top h1 { font-size: 18px; }
+  .filters.toolbar { gap: 8px; padding: 8px 12px 6px; }
+  .tb-line { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .tb-line .search { flex: 1 1 160px; min-width: 120px; padding: 8px 12px; }
+  .tb-line .fav-toggle { align-self: stretch; }
+  .tb-line .tabs { display: inline-grid; grid-template-columns: repeat(4, auto); flex: 0 0 auto; }
+  .tb-line .tabs button { padding: 6px 12px; font-size: 13.5px; }
+  .tb-line > select { flex: 0 0 auto; padding: 7px 10px; }
+  .tb-wrap { flex-wrap: wrap; gap: 6px 18px; }
+  .tb-wrap .cats { overflow: visible; flex-wrap: wrap; padding: 0; gap: 6px; }
+  .tb-wrap .chip { padding: 5px 10px; font-size: 13.5px; }
+  .tb-line .scope-hint { flex: 1 1 0; min-width: 0; margin: 0; display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px; }
+  .tb-line .scope-hint .scope-areas { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-line .scope-hint .link-btn { flex: 0 0 auto; white-space: nowrap; }
+  .tb-line .days { flex: 0 0 auto; flex-wrap: nowrap; }
+  .tb-line .day { width: 32px; height: 32px; font-size: 13px; }
+  .tb-line .seg button { padding: 6px 12px; }
+}

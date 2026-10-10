@@ -64,6 +64,7 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [favOnly, setFavOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false); // 숨긴 프로그램만 보기(되살리기용)
+  const [optionsOpen, setOptionsOpen] = useState(false); // PC "옵션" 창
   const [toast, setToast] = useState(null); // 방금 숨긴 프로그램 { key, title } — 되돌리기 안내
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -79,6 +80,13 @@ export default function App() {
   // 샘플일 때는 샘플이 도심 쪽 기관 위주라서 처음부터 서울 전체로 보여줌
   // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
   useEffect(() => { if (!loading && meta.isSample) setScope('all'); }, [loading, meta.isSample]);
+
+  useEffect(() => {
+    if (!optionsOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOptionsOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [optionsOpen]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -383,6 +391,141 @@ export default function App() {
 
   const hasErrors = meta.errors?.length > 0;
 
+  // ---- 필터 부품: 폰과 PC가 같은 부품을 다른 배치로 씀 ----
+  const searchEl = (
+    <input
+      type="search"
+      className="search"
+      placeholder="프로그램명·장소 검색"
+      aria-label="프로그램명·장소 검색"
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+    />
+  );
+  const favBtn = (
+    <button
+      type="button"
+      className={`fav-toggle${favOnly ? ' on' : ''}`}
+      aria-pressed={favOnly}
+      onClick={() => setFavOnly((v) => !v)}
+    >
+      {favOnly ? '♥' : '♡'} 찜 {favCount}
+    </button>
+  );
+  const tabsEl = (
+    <div className="tabs" role="tablist">
+      {TABS.map((x) => (
+        <button key={x.id} role="tab" aria-selected={tab === x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)}>
+          {x.label} <span className="n">{tabCounts[x.id]}</span>
+        </button>
+      ))}
+    </div>
+  );
+  const catsEl = (
+    <div className="cats" role="group" aria-label="분야">
+      {CATEGORIES.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          aria-pressed={cats.includes(c.id)}
+          className={`chip${cats.includes(c.id) ? ' on' : ''}`}
+          onClick={() => toggleCat(c.id)}
+        >
+          <span aria-hidden>{c.emoji}</span> {c.label} <span className="n">{catCounts[c.id] ?? 0}</span>
+        </button>
+      ))}
+      {cats.length > 0 && <button type="button" className="link-btn" onClick={() => setCats([])}>전체 분야</button>}
+    </div>
+  );
+  const kidsEl = (
+    <div className="kids" role="group" aria-label="아이">
+      <span className="days-label">아이</span>
+      {kids.map((k) => {
+        const g = gradeOn(k.birthYear, now);
+        return (
+          <button
+            key={k.id}
+            type="button"
+            aria-pressed={activeIds.includes(k.id)}
+            className={`chip kid${activeIds.includes(k.id) ? ' on' : ''}`}
+            onClick={() => toggleKid(k.id)}
+          >
+            {k.label} · {gradeLabel(g)}
+          </button>
+        );
+      })}
+    </div>
+  );
+  const scopeSeg = (
+    <div className="seg" role="group" aria-label="지역">
+      <button className={scope === 'near' ? 'on' : ''} onClick={() => setScope('near')}>선택한 구</button>
+      <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>서울 전체</button>
+    </div>
+  );
+  const sortEl = (
+    <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="정렬">
+      {SORTS.map((x) => (<option key={x.id} value={x.id}>{x.label}</option>))}
+    </select>
+  );
+  const hintEl =
+    scope === 'near' && !favOnly ? (
+      <p className="scope-hint">
+        <span className="scope-areas">{settings.areas.length ? settings.areas.join(' · ') : '선택된 구가 없어요'}</span>
+        <button type="button" className="link-btn" onClick={() => setSettingsOpen(true)}>구 바꾸기</button>
+      </p>
+    ) : null;
+  const daysEl = !phoneCalendar ? (
+    <div className="days" role="group" aria-label="이용 요일">
+      <span className="days-label">요일</span>
+      {DAY_ORDER.map((d) => (
+        <button
+          key={d}
+          type="button"
+          aria-pressed={days.includes(d)}
+          className={`day${days.includes(d) ? ' on' : ''}${d === 0 ? ' sun' : d === 6 ? ' sat' : ''}`}
+          onClick={() => toggleDay(d)}
+        >
+          {DAY_LABELS[d]}
+        </button>
+      ))}
+      {days.length > 0 && (
+        <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>
+      )}
+    </div>
+  ) : null;
+  const checkLabels = (
+    <>
+      <label><input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} /> 무료만 보기</label>
+      <label><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> 예약마감·종료 포함</label>
+      <label><input type="checkbox" checked={includeOpen} onChange={(e) => setIncludeOpen(e.target.checked)} /> 대상 "제한없음"도 포함{openHidden > 0 && !includeOpen ? ` (${openHidden})` : ''}</label>
+      <label><input type="checkbox" checked={showAllTargets} onChange={(e) => setShowAllTargets(e.target.checked)} /> 대상 안 맞는 것 포함 (단체·장애인 등)</label>
+      {(hiddenCount > 0 || showHidden) && (
+        <label><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> 숨긴 것 다시 보기 ({hiddenCount})</label>
+      )}
+    </>
+  );
+  // PC: 체크박스들을 "옵션" 버튼 하나로 모음 (켜 둔 개수를 숫자로 보여줌)
+  const optionCount = [freeOnly, showClosed, includeOpen, showAllTargets, showHidden].filter(Boolean).length;
+  const optionsEl = (
+    <div className="opt-wrap">
+      <button
+        type="button"
+        className={`opt-btn${optionsOpen || optionCount > 0 ? ' on' : ''}`}
+        aria-expanded={optionsOpen}
+        onClick={() => setOptionsOpen((v) => !v)}
+      >
+        옵션 ▾{optionCount > 0 && <span className="opt-n">{optionCount}</span>}
+      </button>
+      {optionsOpen && (
+        <>
+          <div className="pop-backdrop" onClick={() => setOptionsOpen(false)} />
+          <div className="opt-pop" role="dialog" aria-label="옵션">{checkLabels}</div>
+        </>
+      )}
+    </div>
+  );
+
+
   return (
     <div className="app">
       <header className="top">
@@ -390,10 +533,15 @@ export default function App() {
           <h1>서울 아이 체험</h1>
           <p className="sub">숲체험 · 박물관 · 어린이 체험 예약을 한곳에서</p>
         </div>
-        <button className="grade-chip" onClick={() => setSettingsOpen(true)} aria-label="아이·지역 설정">
-          설정
-          <small>아이 {kids.length}명</small>
-        </button>
+        <div className="top-right">
+          {isDesktop && !meta.isSample && meta.fetchedAt && (
+            <span className="stamp">마지막 업데이트 {fmtFetchedAt(meta.fetchedAt)}<br />수집된 프로그램 {courses.length}건</span>
+          )}
+          <button className="grade-chip" onClick={() => setSettingsOpen(true)} aria-label="아이·지역 설정">
+            설정
+            <small>아이 {kids.length}명</small>
+          </button>
+        </div>
       </header>
 
       {!loading && meta.isSample && (
@@ -402,7 +550,7 @@ export default function App() {
           인증키를 연결하면 전체 목록이 나와요.
         </div>
       )}
-      {!meta.isSample && meta.fetchedAt && (
+      {!isDesktop && !meta.isSample && meta.fetchedAt && (
         <div className="banner ok">
           마지막 업데이트 {fmtFetchedAt(meta.fetchedAt)} · 수집된 프로그램 {courses.length}건
         </div>
@@ -414,114 +562,24 @@ export default function App() {
         </div>
       )}
 
-      <nav className="filters" aria-label="필터">
-        <div className="searchrow">
-          <input
-            type="search"
-            className="search"
-            placeholder="프로그램명·장소 검색"
-            aria-label="프로그램명·장소 검색"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button
-            type="button"
-            className={`fav-toggle${favOnly ? ' on' : ''}`}
-            aria-pressed={favOnly}
-            onClick={() => setFavOnly((v) => !v)}
-          >
-            {favOnly ? '♥' : '♡'} 찜 {favCount}
-          </button>
-        </div>
-
-        <div className="tabs" role="tablist">
-          {TABS.map((x) => (
-            <button key={x.id} role="tab" aria-selected={tab === x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)}>
-              {x.label} <span className="n">{tabCounts[x.id]}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="cats" role="group" aria-label="분야">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={cats.includes(c.id)}
-              className={`chip${cats.includes(c.id) ? ' on' : ''}`}
-              onClick={() => toggleCat(c.id)}
-            >
-              <span aria-hidden>{c.emoji}</span> {c.label} <span className="n">{catCounts[c.id] ?? 0}</span>
-            </button>
-          ))}
-          {cats.length > 0 && <button type="button" className="link-btn" onClick={() => setCats([])}>전체 분야</button>}
-        </div>
-
-        <div className="kids" role="group" aria-label="아이">
-          <span className="days-label">아이</span>
-          {kids.map((k) => {
-            const g = gradeOn(k.birthYear, now);
-            return (
-              <button
-                key={k.id}
-                type="button"
-                aria-pressed={activeIds.includes(k.id)}
-                className={`chip kid${activeIds.includes(k.id) ? ' on' : ''}`}
-                onClick={() => toggleKid(k.id)}
-              >
-                {k.label} · {gradeLabel(g)}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="row">
-          <div className="seg" role="group" aria-label="지역">
-            <button className={scope === 'near' ? 'on' : ''} onClick={() => setScope('near')}>선택한 구</button>
-            <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>서울 전체</button>
-          </div>
-          <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="정렬">
-            {SORTS.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}
-          </select>
-        </div>
-
-        {scope === 'near' && !favOnly && (
-          <p className="scope-hint">
-            {settings.areas.length ? settings.areas.join(' · ') : '선택된 구가 없어요'}
-            <button type="button" className="link-btn" onClick={() => setSettingsOpen(true)}>구 바꾸기</button>
-          </p>
-        )}
-
-        {!phoneCalendar && (
-          <div className="days" role="group" aria-label="이용 요일">
-            <span className="days-label">요일</span>
-            {DAY_ORDER.map((d) => (
-              <button
-                key={d}
-                type="button"
-                aria-pressed={days.includes(d)}
-                className={`day${days.includes(d) ? ' on' : ''}${d === 0 ? ' sun' : d === 6 ? ' sat' : ''}`}
-                onClick={() => toggleDay(d)}
-              >
-                {DAY_LABELS[d]}
-              </button>
-            ))}
-            {days.length > 0 && (
-              <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>
-            )}
-          </div>
-        )}
-
-        <div className="row checks">
-          <label><input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} /> 무료만 보기</label>
-          <label><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> 예약마감·종료 포함</label>
-          <label><input type="checkbox" checked={includeOpen} onChange={(e) => setIncludeOpen(e.target.checked)} /> 대상 "제한없음"도 포함{openHidden > 0 && !includeOpen ? ` (${openHidden})` : ''}</label>
-          <label><input type="checkbox" checked={showAllTargets} onChange={(e) => setShowAllTargets(e.target.checked)} /> 대상 안 맞는 것 포함 (단체·장애인 등)</label>
-          {(hiddenCount > 0 || showHidden) && (
-            <label><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> 숨긴 것 다시 보기 ({hiddenCount})</label>
-          )}
-        </div>
-      </nav>
+      {isDesktop ? (
+        <nav className="filters toolbar" aria-label="필터">
+          <div className="tb-line">{searchEl}{favBtn}{tabsEl}{sortEl}</div>
+          <div className="tb-line tb-wrap">{catsEl}{kidsEl}</div>
+          <div className="tb-line">{scopeSeg}{hintEl}{daysEl}{optionsEl}</div>
+        </nav>
+      ) : (
+        <nav className="filters" aria-label="필터">
+          <div className="searchrow">{searchEl}{favBtn}</div>
+          {tabsEl}
+          {catsEl}
+          {kidsEl}
+          <div className="row">{scopeSeg}{sortEl}</div>
+          {hintEl}
+          {daysEl}
+          <div className="row checks">{checkLabels}</div>
+        </nav>
+      )}
 
       <main className="panes">
         <section className="pane-list" hidden={!isDesktop && view !== 'list'}>
