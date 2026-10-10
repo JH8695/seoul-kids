@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { DAY_LABELS } from '../lib/weekdays';
 import { monthGrid, monthKey, occurrenceDates, toYmd, dowOfYmd } from '../lib/calendar';
+import { compareAreas } from '../lib/areas';
+import AreaGroup from './AreaGroup';
 
 const HEAD = [0, 1, 2, 3, 4, 5, 6]; // 일~토
 
 const timeKey = (c) => (c.timeKnown && c.classStart ? c.classStart.slice(11, 16) : '99:99');
 
-export default function CalendarView({ rows, renderItem, compact = false }) {
+export default function CalendarView({ rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {} }) {
   const today = useMemo(() => toYmd(new Date()), []);
   const [cursor, setCursor] = useState(() => ({ y: +today.slice(0, 4), m: +today.slice(5, 7) }));
   const [sel, setSel] = useState(today);
@@ -62,6 +64,24 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
   const sure = sorted.filter((x) => !x.loose);
   const loose = sorted.filter((x) => x.loose);
   const selDow = sel ? dowOfYmd(sel) : null;
+  const itemsClass = compact ? 'cal-rows' : 'cal-day-list';
+  // 가까운 구 순 정렬일 때는 구 제목 아래로 묶어 접고 펼 수 있게(목록과 같은 접힘 상태)
+  const renderRows = (list) => {
+    if (!groupByArea) return <div className={itemsClass}>{list.map((r) => renderItem(r))}</div>;
+    const m = new Map();
+    list.forEach((r) => {
+      const a = r.course.area || '';
+      if (!m.has(a)) m.set(a, []);
+      m.get(a).push(r);
+    });
+    return [...m.entries()]
+      .sort(([a], [b]) => compareAreas(a, b))
+      .map(([a, rs]) => (
+        <AreaGroup key={a || 'none'} area={a} count={rs.length} collapsed={collapsed.has(a)} onToggle={onToggleArea} itemsClass={itemsClass}>
+          {rs.map((r) => renderItem(r))}
+        </AreaGroup>
+      ));
+  };
   const standingToday = useMemo(
     () =>
       standingRows.filter((r) => {
@@ -151,12 +171,12 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
           ) : (
             <>
               {sure.length > 0 && (
-                <div className={compact ? 'cal-rows' : 'cal-day-list'}>{sure.map((x) => renderItem(x.row))}</div>
+                renderRows(sure.map((x) => x.row))
               )}
               {loose.length > 0 && (
                 <>
                   <h4 className="cal-sub">기간 중 운영 · 이 날 열리는지는 상세 확인</h4>
-                  <div className={compact ? 'cal-rows' : 'cal-day-list'}>{loose.map((x) => renderItem(x.row))}</div>
+                  {renderRows(loose.map((x) => x.row))}
                 </>
               )}
             </>
@@ -164,7 +184,7 @@ export default function CalendarView({ rows, renderItem, compact = false }) {
           {standingToday.length > 0 && (
             <details className="standing">
               <summary>상시 운영 {standingToday.length}개 · 눌러서 펼치기</summary>
-              <div className={compact ? 'cal-rows' : 'cal-day-list'}>{standingToday.map((r) => renderItem(r))}</div>
+              {renderRows(standingToday)}
             </details>
           )}
         </section>

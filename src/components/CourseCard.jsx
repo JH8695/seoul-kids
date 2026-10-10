@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { fmtClassSchedule, fmtDateTime, daysUntil } from '../lib/format';
 import { CATEGORIES } from '../data/config';
 import { REASON_LABEL } from '../lib/audience';
+import { fmtMyDate } from '../lib/mydates';
 
 const STATUS = {
   open: { label: '접수중', cls: 'open' },
@@ -34,7 +35,7 @@ export function KidPills({ kidMatches }) {
  */
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
-  needDetail, online, standing, chips, onHide, hiddenMode,
+  needDetail, online, standing, chips, actions, note, onNote,
 }) {
   const [open, setOpen] = useState(false);
   const [imgOk, setImgOk] = useState(true);
@@ -47,6 +48,11 @@ export default function CourseCard({
     <article className={`card ${st.cls}`}>
       <div className="card-top">
         <span className={`badge ${st.cls}`}>{st.label}</span>
+        {onNote && (
+          <button type="button" className={`note-btn${note ? ' has' : ''}`} onClick={onNote} aria-label={note ? '메모 보기·수정' : '메모 추가'}>
+            📝 메모
+          </button>
+        )}
         {startsIn != null && startsIn >= 0 && (
           <span className="dday">{startsIn === 0 ? '오늘 접수 시작' : `${startsIn}일 뒤 접수 시작`}</span>
         )}
@@ -89,6 +95,13 @@ export default function CourseCard({
         )}
       </div>
 
+      {note && (note.text || note.dates?.length > 0) && (
+        <p className="note-line">
+          📝 {note.text}
+          {note.dates?.length > 0 && <span className="note-dates">{note.text ? ' · ' : ''}내 일정 {note.dates.map(fmtMyDate).join(', ')}</span>}
+        </p>
+      )}
+
       {chips}
 
       {(tags.length > 0 || online || standing) && (
@@ -119,6 +132,7 @@ export default function CourseCard({
           <dd>
             {fmtClassSchedule(course)}
             {needDetail && <span className="pill warn">요일은 상세 확인</span>}
+            {note?.dates?.length > 0 && <span className="pill">내 날짜 기준</span>}
           </dd>
         </div>
         <div>
@@ -142,11 +156,11 @@ export default function CourseCard({
         서울시 예약 사이트에서 보기·신청
       </a>
 
-      {onHide && (
+      {actions?.length > 0 && (
         <div className="card-foot">
-          <button type="button" className="hide-btn" onClick={onHide}>
-            {hiddenMode ? '다시 보이게 하기' : '관심 없어요 (숨기기)'}
-          </button>
+          {actions.map((a) => (
+            <button key={a.label} type="button" className="hide-btn" onClick={a.onClick}>{a.label}</button>
+          ))}
         </div>
       )}
     </article>

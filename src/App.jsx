@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AREA_CENTERS, CATEGORIES, HOME } from './data/config';
+import { CATEGORIES, HOME } from './data/config';
 import { gradeOn, koreanAge, gradeLabel, matchTarget } from './lib/grade';
 import { statusOf } from './lib/status';
 import { audienceOf, REASON_LABEL } from './lib/audience';
 import { distanceKm } from './lib/geo';
+import { compareAreas } from './lib/areas';
+import { fmtMyDate } from './lib/mydates';
 import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
 import { toYmd, dowOfYmd } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
@@ -14,6 +16,10 @@ import CourseCard, { KidPills } from './components/CourseCard';
 import GroupCard from './components/GroupCard';
 import Settings from './components/Settings';
 import CalendarView from './components/CalendarView';
+import AreaGroup from './components/AreaGroup';
+import AreaPicker from './components/AreaPicker';
+import NoteSheet from './components/NoteSheet';
+import Sheet from './components/Sheet';
 
 const TABS = [
   { id: 'all', label: '전체' },
@@ -30,6 +36,7 @@ const SORTS = [
 
 const STATUS_LABEL = { open: '접수중', upcoming: '접수예정', full: '예약마감', closed: '종료' };
 const DAYCH = '일월화수목금토';
+const CAT_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
 function useMedia(query) {
   const [m, setM] = useState(() => window.matchMedia(query).matches);
@@ -44,8 +51,6 @@ function useMedia(query) {
 
 const ms = (iso) => (iso ? new Date(iso).getTime() : Infinity);
 const timePart = (iso) => (iso ? iso.slice(11) : null); // "10:00:00+09:00"
-// 우리 집이 있는 구는 항상 맨 앞, 나머지는 구 중심까지의 직선거리 순
-const areaDist = (a) => (a && a === HOME.area ? -1 : a && AREA_CENTERS[a] ? distanceKm(HOME, AREA_CENTERS[a]) : Infinity);
 
 export default function App() {
   const [settings, setSettings] = useSettings();
@@ -55,7 +60,7 @@ export default function App() {
   const [tab, setTab] = useState('all');
   const [scope, setScope] = useState('near'); // near | all
   const [sort, setSort] = useState('apply');
-  const [view, setView] = useState('calendar'); // 폰 하단 탭: calendar | list
+  const [view, setView] = useState('list'); // 폰 하단 탭: calendar | list (처음엔 목록)
   const [cats, setCats] = useState([]);
   const [showClosed, setShowClosed] = useState(false);
   const [showAllTargets, setShowAllTargets] = useState(false);
@@ -65,7 +70,10 @@ export default function App() {
   const [favOnly, setFavOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false); // 숨긴 프로그램만 보기(되살리기용)
   const [optionsOpen, setOptionsOpen] = useState(false); // PC "옵션" 창
-  const [toast, setToast] = useState(null); // 방금 숨긴 프로그램 { key, title } — 되돌리기 안내
+  const [toast, setToast] = useState(null); // 방금 숨긴 것 { kind: 'group'|'rounds', key?, ids?, text } — 되돌리기 안내
+  const [sheet, setSheet] = useState(null); // 폰 필터 선택 창: cats | kids | area | options
+  const [noteFor, setNoteFor] = useState(null); // 메모 창을 연 회차(예약 id)
+  const [collapsedAreas, setCollapsedAreas] = useState(() => new Set()); // 접어 둔 구(목록·달력 공통)
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const days = settings.days ?? [];
@@ -76,6 +84,14 @@ export default function App() {
   const toggleCat = (id) => setCats((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
   const favs = useMemo(() => new Set(settings.favs ?? []), [settings.favs]);
   const hiddenSet = useMemo(() => new Set(settings.hidden ?? []), [settings.hidden]);
+  const hiddenRoundSet = useMemo(() => new Set(settings.hiddenRounds ?? []), [settings.hiddenRounds]);
+  const notes = settings.notes ?? {};
+  const toggleAreaCollapse = (area, collapse) =>
+    setCollapsedAreas((prev) => {
+      const next = new Set(prev);
+      if (collapse) next.add(area); else next.delete(area);
+      return next;
+    });
 
   // 샘플일 때는 샘플이 도심 쪽 기관 위주라서 처음부터 서울 전체로 보여줌
   // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
@@ -114,7 +130,10 @@ export default function App() {
     () =>
       courses.map((c) => {
         const status = statusOf(c, nowMs);
-        const tinfo = titleInfo(c, now.getFullYear());
+        // 내가 적은 날짜가 있으면 제목에서 읽은 일정보다 항상 우선
+        const note = notes[c.id] ?? null;
+        const myDates = note?.dates?.length ? [...note.dates].sort() : null;
+        const tinfo = myDates ? { dates: myDates, intervals: null, weekdays: null } : titleInfo(c, now.getFullYear());
         const online = isOnline(c);
         const titleTarget = extractTitleTarget(c.title);
 
@@ -168,6 +187,8 @@ export default function App() {
         }
         const multiDay = c.classStart && c.classEnd && c.classStart.slice(0, 10) !== c.classEnd.slice(0, 10);
         return {
+          orig: c,
+          note,
           course: disp,
           status,
           kidMatches,
@@ -183,7 +204,7 @@ export default function App() {
           distance: online ? null : distanceKm(HOME, { lat: c.lat, lng: c.lng }),
         };
       }),
-    [courses, kids, nowMs, activeIds, now, todayYmd],
+    [courses, kids, nowMs, activeIds, now, todayYmd, notes],
   );
 
   const isOver = (e) =>
@@ -203,15 +224,49 @@ export default function App() {
     setSettings({ ...settings, favs: [...next] });
   };
 
+  const hiddenKind = (e) => (hiddenSet.has(e.groupKey) ? 'group' : hiddenRoundSet.has(e.course.id) ? 'round' : null);
+
   // "관심 없어요": 같은 프로그램(모든 회차)을 목록과 달력에서 숨김. 찜해 둔 것이면 찜도 풀림
   const hideItem = (members) => {
     const key = members[0].groupKey;
     const nextFavs = new Set(favs);
     members.forEach((m) => { nextFavs.delete(m.groupKey); nextFavs.delete(m.course.id); });
     setSettings({ ...settings, hidden: [...new Set([...(settings.hidden ?? []), key])], favs: [...nextFavs] });
-    setToast({ key, title: members[0].course.title });
+    setToast({ kind: 'group', key, text: `숨겼어요 · ${members[0].course.title}` });
   };
   const unhide = (key) => setSettings((s) => ({ ...s, hidden: (s.hidden ?? []).filter((k) => k !== key) }));
+  const unhideRounds = (ids) => setSettings((s) => ({ ...s, hiddenRounds: (s.hiddenRounds ?? []).filter((id) => !ids.includes(id)) }));
+
+  // "이 회차만 남기기": 지금 고른 회차만 두고 같은 프로그램의 나머지 회차를 숨김
+  const keepOnly = (row) => {
+    const others = enriched
+      .filter((e) => e.groupKey === row.groupKey && e.course.id !== row.course.id && !isOver(e) && !hiddenRoundSet.has(e.course.id))
+      .map((e) => e.course.id);
+    if (!others.length) return;
+    setSettings((s) => ({ ...s, hiddenRounds: [...new Set([...(s.hiddenRounds ?? []), ...others])] }));
+    setToast({ kind: 'rounds', ids: others, text: `${row.chip} 회차만 남기고 ${others.length}개를 숨겼어요` });
+  };
+
+  const saveNote = (id, note) =>
+    setSettings((s) => {
+      const n = { ...(s.notes ?? {}) };
+      if (note) n[id] = note; else delete n[id];
+      return { ...s, notes: n };
+    });
+
+  // 카드 맨 아래 버튼들: 보통은 숨기기, "숨긴 것 다시 보기"에서는 되살리기
+  const actionsFor = (row, members) => {
+    const hk = hiddenKind(row);
+    if (showHidden) {
+      return hk === 'group'
+        ? [{ label: '다시 보이게 하기', onClick: () => unhide(row.groupKey) }]
+        : [{ label: '이 회차만 숨기기 취소', onClick: () => unhideRounds([row.course.id]) }];
+    }
+    const acts = [];
+    if (members.length > 1) acts.push({ label: '이 회차만 남기기', onClick: () => keepOnly(row) });
+    acts.push({ label: members.length > 1 ? '관심 없어요' : '관심 없어요 (숨기기)', onClick: () => hideItem(members) });
+    return acts;
+  };
 
   // 검색어: 프로그램명·장소에서 찾음 (띄어쓰기·대소문자 무시)
   const norm = (x) => (x ?? '').toLowerCase().replace(/\s+/g, '');
@@ -223,8 +278,9 @@ export default function App() {
       const c = e.course;
       if (isOver(e)) return false; // 이미 끝난 프로그램(회차)
       if (q && !norm(`${c.title} ${c.place}`).includes(q)) return false;
-      if (showHidden) return hiddenSet.has(e.groupKey); // 숨긴 것만 보여줌(다시 보이게 하려고)
-      if (hiddenSet.has(e.groupKey)) return false;
+      const hk = hiddenKind(e);
+      if (showHidden) return !!hk; // 숨긴 것만 보여줌(다시 보이게 하려고)
+      if (hk) return false;
       if (favOnly) return isFavRow(e); // 찜 목록은 구·대상·분야 조건과 상관없이 보여줌
       if (scope === 'near' && c.area && !settings.areas.includes(c.area)) return false;
       if (freeOnly && !(/무료/.test(c.pay) && !/유료/.test(c.pay))) return false;
@@ -242,10 +298,12 @@ export default function App() {
     if (id === 'soon') return e.status === 'open' && e.course.applyEnd && daysUntil(e.course.applyEnd, now) <= 3;
     return e.status === 'open' || e.status === 'upcoming' || showClosed || favOnly || showHidden;
   };
-  // 묶음 기준 개수 (상시 운영은 따로 세므로 뺌)
-  const countItems = (rows) => new Set(rows.filter((e) => !e.standing).map((e) => e.groupKey)).size;
+  // 요일 칩을 골랐는데 요일을 알 수 없는 프로그램은 "요일 확인 필요"로 따로 접어 둠
+  const isDayUnknown = (e) => effDays.length > 0 && !e.daySet;
+  // 묶음 기준 개수 (상시 운영·요일 확인 필요는 따로 세므로 뺌)
+  const countItems = (rows) => new Set(rows.filter((e) => !e.standing && !isDayUnknown(e)).map((e) => e.groupKey)).size;
 
-  const dep = [scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, showHidden, activeIds, effDays, todayYmd];
+  const dep = [scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, hiddenRoundSet, showHidden, activeIds, effDays, todayYmd];
   /* eslint-disable */
   const base = useMemo(() => pre(false), [enriched, cats, ...dep]);
   const baseNoCats = useMemo(() => pre(true), [enriched, ...dep]);
@@ -260,7 +318,7 @@ export default function App() {
   }, [base, showClosed, favOnly, showHidden]);
   const catCounts = useMemo(() => {
     const per = {};
-    baseNoCats.filter((e) => inTab(e, tab) && !e.standing).forEach((e) => (e.course.tags ?? []).forEach((t) => { (per[t] ??= new Set()).add(e.groupKey); }));
+    baseNoCats.filter((e) => inTab(e, tab) && !e.standing && !isDayUnknown(e)).forEach((e) => (e.course.tags ?? []).forEach((t) => { (per[t] ??= new Set()).add(e.groupKey); }));
     return Object.fromEntries(Object.entries(per).map(([k, v]) => [k, v.size]));
   }, [baseNoCats, tab, showClosed, favOnly, showHidden]);
 
@@ -284,8 +342,11 @@ export default function App() {
   }, [list]);
 
   // 상시 운영(한 달 내내 열려 있는 시설 예약)은 따로 모아 맨 아래 섹션으로
-  const mainItems = useMemo(() => items.filter((it) => !it.members.every((m) => m.standing)), [items]);
-  const standingItems = useMemo(() => items.filter((it) => it.members.every((m) => m.standing)), [items]);
+  const itemStanding = (it) => it.members.every((m) => m.standing);
+  const itemDayUnknown = (it) => it.members.every((m) => isDayUnknown(m));
+  const mainItems = useMemo(() => items.filter((it) => !itemStanding(it) && !itemDayUnknown(it)), [items, effDays]);
+  const unknownItems = useMemo(() => items.filter((it) => !itemStanding(it) && itemDayUnknown(it)), [items, effDays]);
+  const standingItems = useMemo(() => items.filter(itemStanding), [items]);
 
   // "가까운 구 순": 구별로 묶고, 집에서 가까운 구부터
   const areaBuckets = useMemo(() => {
@@ -297,17 +358,13 @@ export default function App() {
       m.get(a).push(it);
     });
     return [...m.entries()]
-      .sort(([a], [b]) => {
-        const da = areaDist(a), db = areaDist(b);
-        if (da === db) return a.localeCompare(b);
-        return da < db ? -1 : 1;
-      })
+      .sort(([a], [b]) => compareAreas(a, b))
       .map(([area, its]) => ({ area, items: its }));
   }, [mainItems, sort]);
 
   const hiddenCount = useMemo(
-    () => new Set(enriched.filter((e) => !isOver(e) && hiddenSet.has(e.groupKey)).map((e) => e.groupKey)).size,
-    [enriched, hiddenSet, todayYmd],
+    () => new Set(enriched.filter((e) => !isOver(e) && hiddenKind(e)).map((e) => e.groupKey)).size,
+    [enriched, hiddenSet, hiddenRoundSet, todayYmd],
   );
   const favCount = useMemo(
     () => new Set(enriched.filter((e) => !isOver(e) && isFavRow(e)).map((e) => e.groupKey)).size,
@@ -336,8 +393,9 @@ export default function App() {
       fav={isFavRow(e)}
       onToggleFav={() => toggleFav([e])}
       standing={e.standing}
-      hiddenMode={showHidden}
-      onHide={() => (showHidden ? unhide(e.groupKey) : hideItem([e]))}
+      actions={actionsFor(e, [e])}
+      note={e.note}
+      onNote={() => setNoteFor(e.course.id)}
     />
   );
 
@@ -349,8 +407,8 @@ export default function App() {
         fav={it.members.some(isFavRow)}
         onToggleFav={() => toggleFav(it.members)}
         home={HOME}
-        hiddenMode={showHidden}
-        onHide={() => (showHidden ? unhide(it.key) : hideItem(it.members))}
+        getActions={(sel) => actionsFor(sel, it.members)}
+        onNote={setNoteFor}
       />
     ) : (
       renderCard(it.members[0])
@@ -367,6 +425,11 @@ export default function App() {
           </span>
           <span className="cal-row-title">{c.title}</span>
           <span className="cal-row-sub">{time && `${time} · `}{c.place}</span>
+          {e.note && (e.note.text || e.note.dates?.length > 0) && (
+            <span className="cal-row-note">
+              📝 {e.note.text}{e.note.dates?.length > 0 && ` ${e.note.text ? '· ' : ''}내 일정 ${e.note.dates.map(fmtMyDate).join(', ')}`}
+            </span>
+          )}
           <span className="cal-row-target">
             대상 {c.targetText || '원문 없음'}
             <KidPills kidMatches={e.kidMatches} />
@@ -375,13 +438,16 @@ export default function App() {
             )}
           </span>
         </a>
-        {/* 링크 바깥에 둔 버튼: 눌러도 예약 사이트로 넘어가지 않아요 */}
+        {/* 링크 바깥에 둔 버튼들: 눌러도 예약 사이트로 넘어가지 않아요 */}
+        <button type="button" className="cal-note" aria-label="메모 · 내 날짜" title="메모 · 내 날짜" onClick={() => setNoteFor(c.id)}>
+          {e.note ? '📝' : '✎'}
+        </button>
         <button
           type="button"
           className="cal-hide"
           aria-label={showHidden ? '다시 보이게 하기' : '관심 없어요 (숨기기)'}
           title={showHidden ? '다시 보이게 하기' : '관심 없어요 · 같은 프로그램의 모든 회차를 숨겨요'}
-          onClick={() => (showHidden ? unhide(e.groupKey) : hideItem([e]))}
+          onClick={() => (showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : hideItem([e]))}
         >
           {showHidden ? '↺' : '✕'}
         </button>
@@ -525,6 +591,109 @@ export default function App() {
     </div>
   );
 
+  // ---- 폰: 분야·아이·구·옵션 버튼 4개 + 아래에서 올라오는 선택 창 ----
+  const phoneOptionCount = optionCount + (days.length > 0 ? 1 : 0) + (sort !== 'apply' ? 1 : 0);
+  const daysText = DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_LABELS[d]).join('·');
+  const fbtn = (label, badge, on, onClick) => (
+    <button type="button" className={`fbtn${on ? ' on' : ''}`} onClick={onClick}>
+      {label}{badge ? <span className="opt-n">{badge}</span> : ' ▾'}
+    </button>
+  );
+  const phoneBar = (
+    <>
+      <div className="fbar">
+        {fbtn('분야', cats.length || null, cats.length > 0, () => setSheet('cats'))}
+        {fbtn(activeIds.length === kids.length ? '아이' : `아이 ${activeIds.length}/${kids.length}`, null, activeIds.length !== kids.length, () => setSheet('kids'))}
+        {fbtn(scope === 'near' ? '구' : '서울', scope === 'near' ? settings.areas.length : null, scope === 'all', () => setSheet('area'))}
+        {fbtn('옵션', phoneOptionCount || null, phoneOptionCount > 0, () => setSheet('options'))}
+      </div>
+      {(cats.length > 0 || days.length > 0) && (
+        <div className="ftags">
+          {cats.map((id) => (
+            <button key={id} type="button" className="ftag" onClick={() => toggleCat(id)}>
+              {CAT_BY_ID[id].emoji} {CAT_BY_ID[id].label} ✕
+            </button>
+          ))}
+          {days.length > 0 && (
+            <button type="button" className="ftag" onClick={() => setSettings({ ...settings, days: [] })}>요일 {daysText} ✕</button>
+          )}
+        </div>
+      )}
+    </>
+  );
+  const closeSheet = () => setSheet(null);
+  const phoneSheets = (
+    <>
+      {sheet === 'cats' && (
+        <Sheet
+          title="분야"
+          onClose={closeSheet}
+          footer={
+            <div className="note-actions">
+              <button className="primary" onClick={closeSheet}>완료</button>
+              {cats.length > 0 && <button className="outline" onClick={() => setCats([])}>전체 해제</button>}
+            </div>
+          }
+        >
+          <div className="fs-grid">
+            {CATEGORIES.map((c) => (
+              <button key={c.id} type="button" aria-pressed={cats.includes(c.id)} className={`fs-btn${cats.includes(c.id) ? ' on' : ''}`} onClick={() => toggleCat(c.id)}>
+                <span aria-hidden>{c.emoji}</span> {c.label} <small>{catCounts[c.id] ?? 0}</small>
+              </button>
+            ))}
+          </div>
+          <p className="hint">고르지 않으면 모든 분야가 보여요. 여러 개를 고를 수 있어요.</p>
+        </Sheet>
+      )}
+      {sheet === 'kids' && (
+        <Sheet title="아이" onClose={closeSheet}>
+          <div className="fs-grid one">
+            {kids.map((k) => (
+              <button key={k.id} type="button" aria-pressed={activeIds.includes(k.id)} className={`fs-btn${activeIds.includes(k.id) ? ' on' : ''}`} onClick={() => toggleKid(k.id)}>
+                {k.label} · {gradeLabel(gradeOn(k.birthYear, now))}
+              </button>
+            ))}
+          </div>
+          <p className="hint">고른 아이에게 맞는 프로그램만 보여요. 아이 정보는 설정에서 바꿔요.</p>
+        </Sheet>
+      )}
+      {sheet === 'area' && (
+        <Sheet title="구 선택" onClose={closeSheet}>
+          {scopeSeg}
+          {scope === 'near' ? (
+            <AreaPicker settings={settings} setSettings={setSettings} />
+          ) : (
+            <p className="hint">서울 전체의 프로그램을 보여줘요.</p>
+          )}
+        </Sheet>
+      )}
+      {sheet === 'options' && (
+        <Sheet title="옵션" onClose={closeSheet}>
+          <fieldset className="sheet-sort">
+            <legend>정렬</legend>
+            {SORTS.map((x) => (
+              <label key={x.id}><input type="radio" name="sort" checked={sort === x.id} onChange={() => setSort(x.id)} /> {x.label}</label>
+            ))}
+          </fieldset>
+          <div className="sheet-days">
+            <div className="days" role="group" aria-label="이용 요일">
+              <span className="days-label">요일</span>
+              {DAY_ORDER.map((d) => (
+                <button key={d} type="button" aria-pressed={days.includes(d)} className={`day${days.includes(d) ? ' on' : ''}${d === 0 ? ' sun' : d === 6 ? ' sat' : ''}`} onClick={() => toggleDay(d)}>
+                  {DAY_LABELS[d]}
+                </button>
+              ))}
+              {days.length > 0 && <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>}
+            </div>
+            {phoneCalendar && <p className="hint">달력 화면에서는 요일 필터가 적용되지 않아요. 목록에서 적용돼요.</p>}
+          </div>
+          <div className="sheet-checks">{checkLabels}</div>
+        </Sheet>
+      )}
+    </>
+  );
+
+  const noteRow = noteFor ? enriched.find((e) => e.course.id === noteFor) : null;
 
   return (
     <div className="app">
@@ -572,12 +741,7 @@ export default function App() {
         <nav className="filters" aria-label="필터">
           <div className="searchrow">{searchEl}{favBtn}</div>
           {tabsEl}
-          {catsEl}
-          {kidsEl}
-          <div className="row">{scopeSeg}{sortEl}</div>
-          {hintEl}
-          {daysEl}
-          <div className="row checks">{checkLabels}</div>
+          {phoneBar}
         </nav>
       )}
 
@@ -597,15 +761,24 @@ export default function App() {
             </div>
           ) : (
             <>
-              {mainItems.length === 0 && <p className="hint">날짜가 정해진 프로그램은 없고, 상시 운영만 있어요.</p>}
+              {mainItems.length === 0 && (unknownItems.length > 0 || standingItems.length > 0) && (
+                <p className="hint">
+                  {unknownItems.length > 0 ? '고른 요일이 확인된 프로그램은 없어요. 요일을 알 수 없는 프로그램은 아래에 접혀 있어요.' : '날짜가 정해진 프로그램은 없고, 상시 운영만 있어요.'}
+                </p>
+              )}
               {areaBuckets
                 ? areaBuckets.map((b) => (
-                    <details className="area-group" key={b.area || 'none'} open>
-                      <summary>{b.area || '구 미표기'} <span className="n">{b.items.length}</span></summary>
-                      <div className="area-items">{b.items.map(renderItem)}</div>
-                    </details>
+                    <AreaGroup key={b.area || 'none'} area={b.area} count={b.items.length} collapsed={collapsedAreas.has(b.area)} onToggle={toggleAreaCollapse}>
+                      {b.items.map(renderItem)}
+                    </AreaGroup>
                   ))
                 : mainItems.map(renderItem)}
+              {unknownItems.length > 0 && (
+                <details className="standing">
+                  <summary>요일 확인 필요 {unknownItems.length}개 · 눌러서 펼치기</summary>
+                  <div className="area-items">{unknownItems.map(renderItem)}</div>
+                </details>
+              )}
               {standingItems.length > 0 && (
                 <details className="standing">
                   <summary>상시 운영 {standingItems.length}개 · 눌러서 펼치기</summary>
@@ -634,13 +807,13 @@ export default function App() {
         {isDesktop ? (
           <div className="pane-right">
             <section className="pane-cal" aria-label="달력">
-              <CalendarView rows={list} renderItem={renderCompact} compact />
+              <CalendarView rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} />
             </section>
           </div>
         ) : (
           view === 'calendar' && (
             <section className="pane-cal-m" aria-label="달력">
-              <CalendarView rows={list} renderItem={renderCard} />
+              <CalendarView rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} />
             </section>
           )
         )}
@@ -655,9 +828,15 @@ export default function App() {
 
       {toast && (
         <div className="toast" role="status">
-          <span className="toast-text">숨겼어요 · {toast.title}</span>
-          <button type="button" onClick={() => { unhide(toast.key); setToast(null); }}>되돌리기</button>
+          <span className="toast-text">{toast.text}</span>
+          <button type="button" onClick={() => { if (toast.kind === 'group') unhide(toast.key); else unhideRounds(toast.ids); setToast(null); }}>되돌리기</button>
         </div>
+      )}
+
+      {!isDesktop && phoneSheets}
+
+      {noteRow && (
+        <NoteSheet key={noteRow.course.id} orig={noteRow.orig} note={noteRow.note} onSave={(n) => saveNote(noteRow.course.id, n)} onClose={() => setNoteFor(null)} />
       )}
 
       {settingsOpen && <Settings settings={settings} setSettings={setSettings} now={now} onClose={() => setSettingsOpen(false)} />}

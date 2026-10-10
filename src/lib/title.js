@@ -215,17 +215,21 @@ export function chipLabel(course, info) {
 // "10월 운영 안내", "전시해설 예약"처럼 날짜가 정해진 행사가 아니라 한 달 내내 열려 있는 시설 예약.
 // 달력의 모든 날에 찍혀 숫자를 부풀리므로, 달력·목록에서 따로 모아 접어 둡니다.
 
-const STANDING_WORDS = /운영\s*안내|상시|상설|수시\s*(?:예약|운영|접수)|연중|운영\s*일정|전시\s*해설\s*예약|관람\s*예약/;
+// 수시·상시·상설·연중·매일은 뒤에 모집/신청/운영/예약 무엇이 붙어도 상시로 봄
+const STANDING_WORDS = /수시|상시|상설|연중|매일|운영\s*안내|운영\s*일정|전시\s*해설\s*예약|관람\s*예약/;
 const hm = (iso) => (iso && iso.length >= 16 ? +iso.slice(11, 13) * 60 + +iso.slice(14, 16) : null);
 const dayNum = (ymd) => Math.round(Date.parse(`${ymd}T00:00:00Z`) / 86400000);
 
 export function isStanding(course, info) {
   if (info?.dates?.length) return false; // 날짜가 적혀 있으면 정해진 회차
   if (STANDING_WORDS.test(course.title ?? '')) return true;
-  // 요일 정보 없이 한 달 가까이, 하루 6시간 이상 열려 있으면 상시 운영으로 봄
-  if (info?.weekdays || (course.weekdays && course.weekdays.length)) return false;
   const s = ymdOfIso(course.classStart);
   const e = ymdOfIso(course.classEnd);
+  const longWindow = !!(s && e && dayNum(e) - dayNum(s) >= 21);
+  // 평일 매일(월~금)이나 매일 반복되는 장기 프로그램은 달력에서 모든 평일에 찍히므로 상시로 봄
+  const days = info?.weekdays ?? (course.weekdays && course.weekdays.length ? course.weekdays : null);
+  if (days) return days.length >= 5 && longWindow;
+  // 요일 정보 없이 한 달 가까이, 하루 6시간 이상 열려 있으면 상시 운영으로 봄
   if (!s || !e || !course.timeKnown) return false;
   const a = hm(course.classStart);
   const b = hm(course.classEnd);

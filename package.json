@@ -9,7 +9,7 @@
     "preview": "vite preview --host",
     "collect": "node scripts/collect.mjs",
     "sample": "node scripts/make-sample.mjs",
-    "test": "node test/seoul.test.mjs && node test/grade.test.mjs && node test/audience.test.mjs && node test/title.test.mjs"
+    "test": "node test/seoul.test.mjs && node test/grade.test.mjs && node test/audience.test.mjs && node test/title.test.mjs && node test/mydates.test.mjs && node test/backup.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
