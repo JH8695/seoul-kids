@@ -374,3 +374,12 @@ body { overflow-x: hidden; }
 .toast-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .toast button { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; padding: 6px 4px; }
 @media (min-width: 900px) { .toast { bottom: 16px; } }
+
+/* PC 달력 아래 줄의 숨기기 버튼 */
+.cal-row-wrap { position: relative; min-width: 0; }
+.cal-row-wrap .cal-row { padding-right: 38px; }
+.cal-hide {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; line-height: 1; padding: 0;
+}
+.cal-hide:hover { background: #f8d9d6; color: #8a1f17; border-color: #e6aaa4; }

@@ -352,20 +352,32 @@ export default function App() {
     const c = e.course;
     const time = fmtStartTime(c);
     return (
-      <a key={c.id} className={`cal-row ${e.status}`} href={c.url} target="_blank" rel="noopener noreferrer">
-        <span className={`badge ${e.status === 'open' ? 'open' : e.status === 'upcoming' ? 'upcoming' : 'closed'}`}>
-          {STATUS_LABEL[e.status]}
-        </span>
-        <span className="cal-row-title">{c.title}</span>
-        <span className="cal-row-sub">{time && `${time} · `}{c.place}</span>
-        <span className="cal-row-target">
-          대상 {c.targetText || '원문 없음'}
-          <KidPills kidMatches={e.kidMatches} />
-          {e.audience.kind === 'no' && e.audience.reason && (
-            <span className="pill bad">{REASON_LABEL[e.audience.reason]}</span>
-          )}
-        </span>
-      </a>
+      <div key={c.id} className="cal-row-wrap">
+        <a className={`cal-row ${e.status}`} href={c.url} target="_blank" rel="noopener noreferrer">
+          <span className={`badge ${e.status === 'open' ? 'open' : e.status === 'upcoming' ? 'upcoming' : 'closed'}`}>
+            {STATUS_LABEL[e.status]}
+          </span>
+          <span className="cal-row-title">{c.title}</span>
+          <span className="cal-row-sub">{time && `${time} · `}{c.place}</span>
+          <span className="cal-row-target">
+            대상 {c.targetText || '원문 없음'}
+            <KidPills kidMatches={e.kidMatches} />
+            {e.audience.kind === 'no' && e.audience.reason && (
+              <span className="pill bad">{REASON_LABEL[e.audience.reason]}</span>
+            )}
+          </span>
+        </a>
+        {/* 링크 바깥에 둔 버튼: 눌러도 예약 사이트로 넘어가지 않아요 */}
+        <button
+          type="button"
+          className="cal-hide"
+          aria-label={showHidden ? '다시 보이게 하기' : '관심 없어요 (숨기기)'}
+          title={showHidden ? '다시 보이게 하기' : '관심 없어요 · 같은 프로그램의 모든 회차를 숨겨요'}
+          onClick={() => (showHidden ? unhide(e.groupKey) : hideItem([e]))}
+        >
+          {showHidden ? '↺' : '✕'}
+        </button>
+      </div>
     );
   };
 
