@@ -67,7 +67,7 @@ export default function Settings({ settings, setSettings, now, onClose }) {
         </p>
 
         <fieldset className="areas">
-          <legend>"강남·주변"으로 볼 자치구</legend>
+          <legend>"선택한 구"로 볼 자치구</legend>
           <div className="area-grid">
             {ALL_AREAS.map((a) => (
               <label key={a} className={settings.areas.includes(a) ? 'on' : ''}>

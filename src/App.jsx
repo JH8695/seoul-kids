@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, HOME } from './data/config';
 import { gradeOn, koreanAge, gradeLabel, matchTarget } from './lib/grade';
 import { statusOf } from './lib/status';
+import { audienceOf } from './lib/audience';
 import { distanceKm } from './lib/geo';
 import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
 import { toYmd } from './lib/calendar';
@@ -42,7 +43,7 @@ const ms = (iso) => (iso ? new Date(iso).getTime() : Infinity);
 
 export default function App() {
   const [settings, setSettings] = useSettings();
-  const { courses, meta } = useCourses();
+  const { courses, meta, loading } = useCourses();
   const isDesktop = useMedia('(min-width: 900px)');
 
   const [tab, setTab] = useState('all');
@@ -52,6 +53,10 @@ export default function App() {
   const [cats, setCats] = useState([]);
   const [showClosed, setShowClosed] = useState(false);
   const [showAllTargets, setShowAllTargets] = useState(false);
+  const [includeOpen, setIncludeOpen] = useState(false); // 대상 "제한없음"(어린이·가족 언급 없음)도 포함
+  const [freeOnly, setFreeOnly] = useState(false);
+  const [query, setQuery] = useState('');
+  const [favOnly, setFavOnly] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const days = settings.days ?? [];
@@ -60,9 +65,13 @@ export default function App() {
   const toggleDay = (d) =>
     setSettings({ ...settings, days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d] });
   const toggleCat = (id) => setCats((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  const favs = useMemo(() => new Set(settings.favs ?? []), [settings.favs]);
+  const toggleFav = (id) =>
+    setSettings({ ...settings, favs: favs.has(id) ? [...favs].filter((x) => x !== id) : [...favs, id] });
 
   // 샘플일 때는 샘플이 도심 쪽 기관 위주라서 처음부터 서울 전체로 보여줌
-  useEffect(() => { if (meta.isSample) setScope('all'); }, [meta.isSample]);
+  // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
+  useEffect(() => { if (!loading && meta.isSample) setScope('all'); }, [loading, meta.isSample]);
 
   const nowMs = useMemo(() => Date.now(), []);
   const now = useMemo(() => new Date(nowMs), [nowMs]);
@@ -96,28 +105,37 @@ export default function App() {
           }
           return { kid, grade: g, match };
         });
+        const audience = audienceOf(c, kidMatches.filter((k) => activeIds.includes(k.kid.id)));
         return {
           course: { ...c, status },
           status,
           kidMatches,
           targetNote,
+          audience,
           daySet: classWeekdays(c),
           distance: distanceKm(HOME, { lat: c.lat, lng: c.lng }),
         };
       }),
-    [courses, kids, nowMs],
+    [courses, kids, nowMs, activeIds],
   );
 
-  // 분야·상태 탭을 빼고 적용하는 공통 조건
-  const pre = (skipCats) =>
+  // 검색어: 프로그램명·장소에서 찾음 (띄어쓰기·대소문자 무시)
+  const norm = (x) => (x ?? '').toLowerCase().replace(/\s+/g, '');
+  const q = norm(query);
+
+  // 분야·상태 탭을 빼고 적용하는 공통 조건. countOpen=true 면 "제한없음 포함" 설정을 무시하고 셈(옆에 건수를 보여주려고)
+  const pre = (skipCats, countOpen) =>
     enriched.filter((e) => {
       const c = e.course;
       if (c.classEnd && toYmd(c.classEnd) < todayYmd) return false; // 이미 끝난 프로그램
+      if (q && !norm(`${c.title} ${c.place}`).includes(q)) return false;
+      if (favOnly) return favs.has(c.id); // 찜 목록은 구·대상·분야 조건과 상관없이 보여줌
       if (scope === 'near' && c.area && !settings.areas.includes(c.area)) return false;
-      if (
-        !showAllTargets &&
-        !e.kidMatches.some((k) => activeIds.includes(k.kid.id) && k.match.result !== 'nomatch')
-      ) return false;
+      if (freeOnly && !(/무료/.test(c.pay) && !/유료/.test(c.pay))) return false;
+      if (!showAllTargets) {
+        if (e.audience.kind === 'no') return false;
+        if (e.audience.kind === 'open' && !includeOpen && !countOpen) return false;
+      }
       if (!skipCats && cats.length && !c.tags?.some((t) => cats.includes(t))) return false;
       return passesDays(effDays, e.daySet);
     });
@@ -126,23 +144,28 @@ export default function App() {
     if (id === 'open') return e.status === 'open';
     if (id === 'upcoming') return e.status === 'upcoming';
     if (id === 'soon') return e.status === 'open' && e.course.applyEnd && daysUntil(e.course.applyEnd, now) <= 3;
-    return e.status === 'open' || e.status === 'upcoming' || showClosed;
+    return e.status === 'open' || e.status === 'upcoming' || showClosed || favOnly;
   };
 
-  const base = useMemo(() => pre(false), [enriched, scope, settings.areas, showAllTargets, activeIds, cats, effDays, todayYmd]); // eslint-disable-line
-  const baseNoCats = useMemo(() => pre(true), [enriched, scope, settings.areas, showAllTargets, activeIds, effDays, todayYmd]); // eslint-disable-line
+  const base = useMemo(() => pre(false), [enriched, cats, scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, activeIds, effDays, todayYmd]); // eslint-disable-line
+  const baseNoCats = useMemo(() => pre(true), [enriched, scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, activeIds, effDays, todayYmd]); // eslint-disable-line
+
+  const openHidden = useMemo(
+    () => pre(false, true).filter((e) => e.audience.kind === 'open' && inTab(e, tab)).length,
+    [enriched, cats, tab, showClosed, scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, activeIds, effDays, todayYmd], // eslint-disable-line
+  );
 
   const tabCounts = useMemo(() => {
     const m = {};
     TABS.forEach((t) => { m[t.id] = base.filter((e) => inTab(e, t.id)).length; });
     return m;
-  }, [base, showClosed]); // eslint-disable-line
+  }, [base, showClosed, favOnly]); // eslint-disable-line
 
   const catCounts = useMemo(() => {
     const m = {};
     baseNoCats.filter((e) => inTab(e, tab)).forEach((e) => (e.course.tags ?? []).forEach((t) => { m[t] = (m[t] ?? 0) + 1; }));
     return m;
-  }, [baseNoCats, tab, showClosed]); // eslint-disable-line
+  }, [baseNoCats, tab, showClosed, favOnly]); // eslint-disable-line
 
   const list = useMemo(() => {
     const rows = base.filter((e) => inTab(e, tab));
@@ -153,7 +176,7 @@ export default function App() {
       near: (e) => e.distance ?? Infinity,
     }[sort];
     return [...rows].sort((a, b) => key(a) - key(b) || ms(a.course.classStart) - ms(b.course.classStart));
-  }, [base, tab, sort, showClosed]); // eslint-disable-line
+  }, [base, tab, sort, showClosed, favOnly]); // eslint-disable-line
 
   const statusCounts = useMemo(() => {
     const m = {};
@@ -168,8 +191,11 @@ export default function App() {
       status={e.status}
       kidMatches={e.kidMatches}
       targetNote={e.targetNote}
+      audience={e.audience}
       distance={e.distance}
       home={HOME}
+      fav={favs.has(e.course.id)}
+      onToggleFav={toggleFav}
     />
   );
 
@@ -187,6 +213,7 @@ export default function App() {
     );
   };
 
+  const favCount = useMemo(() => courses.filter((c) => favs.has(c.id)).length, [courses, favs]);
   const hasErrors = meta.errors?.length > 0;
 
   return (
@@ -202,7 +229,7 @@ export default function App() {
         </button>
       </header>
 
-      {meta.isSample && (
+      {!loading && meta.isSample && (
         <div className="banner">
           지금 보이는 건 <strong>화면 확인용 샘플</strong>이에요(서울시 예약 사이트의 실제 프로그램 10건).
           인증키를 연결하면 전체 목록이 나와요.
@@ -221,6 +248,25 @@ export default function App() {
       )}
 
       <nav className="filters" aria-label="필터">
+        <div className="searchrow">
+          <input
+            type="search"
+            className="search"
+            placeholder="프로그램명·장소 검색"
+            aria-label="프로그램명·장소 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button
+            type="button"
+            className={`fav-toggle${favOnly ? ' on' : ''}`}
+            aria-pressed={favOnly}
+            onClick={() => setFavOnly((v) => !v)}
+          >
+            {favOnly ? '♥' : '♡'} 찜 {favCount}
+          </button>
+        </div>
+
         <div className="tabs" role="tablist">
           {TABS.map((x) => (
             <button key={x.id} role="tab" aria-selected={tab === x.id} className={tab === x.id ? 'on' : ''} onClick={() => setTab(x.id)}>
@@ -264,13 +310,20 @@ export default function App() {
 
         <div className="row">
           <div className="seg" role="group" aria-label="지역">
-            <button className={scope === 'near' ? 'on' : ''} onClick={() => setScope('near')}>강남·주변</button>
+            <button className={scope === 'near' ? 'on' : ''} onClick={() => setScope('near')}>선택한 구</button>
             <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>서울 전체</button>
           </div>
           <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="정렬">
             {SORTS.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}
           </select>
         </div>
+
+        {scope === 'near' && !favOnly && (
+          <p className="scope-hint">
+            {settings.areas.length ? settings.areas.join(' · ') : '선택된 구가 없어요'}
+            <button type="button" className="link-btn" onClick={() => setSettingsOpen(true)}>구 바꾸기</button>
+          </p>
+        )}
 
         {!phoneCalendar && (
           <div className="days" role="group" aria-label="이용 요일">
@@ -293,8 +346,10 @@ export default function App() {
         )}
 
         <div className="row checks">
+          <label><input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} /> 무료만 보기</label>
           <label><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> 예약마감·종료 포함</label>
-          <label><input type="checkbox" checked={showAllTargets} onChange={(e) => setShowAllTargets(e.target.checked)} /> 대상 안 맞는 것 포함</label>
+          <label><input type="checkbox" checked={includeOpen} onChange={(e) => setIncludeOpen(e.target.checked)} /> 대상 "제한없음"도 포함{openHidden > 0 && !includeOpen ? ` (${openHidden})` : ''}</label>
+          <label><input type="checkbox" checked={showAllTargets} onChange={(e) => setShowAllTargets(e.target.checked)} /> 대상 안 맞는 것 포함 (단체·장애인 등)</label>
         </div>
       </nav>
 
@@ -305,7 +360,10 @@ export default function App() {
               <h3>조건에 맞는 프로그램이 없어요</h3>
               <p>
                 수집된 {courses.length}건 중 지금 조건에 맞는 게 없어요.
-                {scope === 'near' && ' "서울 전체"로 바꿔 보세요.'}
+                {favOnly && ' 찜한 프로그램이 없거나 검색어에 맞는 게 없어요.'}
+                {scope === 'near' && !favOnly && ' "서울 전체"로 바꿔 보세요.'}
+                {!includeOpen && openHidden > 0 && ` 대상이 "제한없음"인 ${openHidden}건은 숨겨져 있어요.`}
+                {q && ' 검색어를 지워 보세요.'}
                 {cats.length > 0 && ' 분야 선택을 해제하면 더 보여요.'}
                 {!showAllTargets && ' "대상 안 맞는 것 포함"을 켜면 전체를 볼 수 있어요.'}
               </p>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { fmtClassSchedule, fmtDateTime, daysUntil } from '../lib/format';
 import { CATEGORIES } from '../data/config';
+import { REASON_LABEL } from '../lib/audience';
 
 const STATUS = {
   open: { label: '접수중', cls: 'open' },
@@ -27,7 +28,7 @@ function KidPills({ kidMatches }) {
   );
 }
 
-export default function CourseCard({ course, status, kidMatches, targetNote, distance, home }) {
+export default function CourseCard({ course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav }) {
   const [open, setOpen] = useState(false);
   const [imgOk, setImgOk] = useState(true);
   const st = STATUS[status] ?? STATUS.closed;
@@ -48,6 +49,15 @@ export default function CourseCard({ course, status, kidMatches, targetNote, dis
         )}
         <span className="grow" />
         {course.pay && <span className="count">{course.pay}</span>}
+        <button
+          type="button"
+          className={`heart${fav ? ' on' : ''}`}
+          aria-pressed={!!fav}
+          aria-label={fav ? '찜 해제' : '찜하기'}
+          onClick={() => onToggleFav(course.id)}
+        >
+          {fav ? '♥' : '♡'}
+        </button>
       </div>
 
       <div className="card-main">
@@ -88,6 +98,10 @@ export default function CourseCard({ course, status, kidMatches, targetNote, dis
             {course.targetText || '원문 없음'}
             <KidPills kidMatches={kidMatches} />
             {targetNote && <span className="pill">{targetNote}</span>}
+            {audience?.kind === 'no' && audience.reason && (
+              <span className="pill bad">{REASON_LABEL[audience.reason]}</span>
+            )}
+            {audience?.note && <span className={`pill${audience.kind === 'open' ? ' warn' : ''}`}>{audience.note}</span>}
           </dd>
         </div>
         <div>
