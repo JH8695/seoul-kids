@@ -44,3 +44,20 @@ export function parseImport(text) {
   }
   return { settings: out };
 }
+
+// ---- 합치기 링크: 설정을 주소 뒤(#import=...)에 담아 다른 기기에서 열면 "합치기" ----
+const toB64 = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64 = (b64) => decodeURIComponent(escape(atob(b64.replace(/-/g, '+').replace(/_/g, '/'))));
+
+export function buildShareLink(settings, baseUrl) {
+  return `${baseUrl}#import=${toB64(buildExport(settings))}`;
+}
+
+/** @returns { settings } 또는 { error } */
+export function parseShareHash(hash) {
+  const m = String(hash).match(/^#import=(.+)$/);
+  if (!m) return { error: '합치기 링크가 아니에요.' };
+  let text;
+  try { text = fromB64(m[1]); } catch { return { error: '링크를 읽지 못했어요. 링크가 중간에 잘렸을 수 있어요.' }; }
+  return parseImport(text);
+}

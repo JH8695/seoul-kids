@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildExport, parseImport } from '../src/lib/backup.js';
+import { buildExport, parseImport, buildShareLink, parseShareHash } from '../src/lib/backup.js';
 
 const settings = {
   kids: [{ id: 'k1', label: '작은아이', birthYear: 2020 }],
@@ -17,4 +17,13 @@ assert.ok(parseImport('{"app":"other","settings":{}}').error);
 assert.ok(parseImport('{"app":"seoul-kids","v":1,"settings":{"favs":"nope"}}').error);
 assert.ok(parseImport('{"app":"seoul-kids","v":1,"settings":{"days":[9]}}').error);
 assert.ok(parseImport('{"app":"seoul-kids","v":1,"settings":{"kids":[]}}').error);
+// 합치기 링크: 한글 메모도 그대로 돌아옴
+const link = buildShareLink(settings, 'https://example.github.io/seoul-kids/');
+assert.ok(link.includes('#import='));
+assert.ok(!/[+/=]/.test(link.split('#import=')[1])); // 주소에 안전한 글자만
+const back = parseShareHash('#' + link.split('#')[1]);
+assert.deepEqual(back.settings.notes, settings.notes);
+assert.deepEqual(back.settings.favs, settings.favs);
+assert.ok(parseShareHash('#import=@@@').error);
+assert.ok(parseShareHash('#other').error);
 console.log('backup.test.mjs OK');

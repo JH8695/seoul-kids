@@ -10,6 +10,9 @@ import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
 import { toYmd, dowOfYmd } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
 import { useSettings } from './lib/useSettings';
+import { useSync } from './lib/useSync';
+import { parseShareHash } from './lib/backup';
+import { mergeUnion, pickSync } from './lib/sync';
 import { useCourses } from './lib/useCourses';
 import { DAY_LABELS, DAY_ORDER, classWeekdays, passesDays } from './lib/weekdays';
 import CourseCard, { KidPills } from './components/CourseCard';
@@ -29,9 +32,9 @@ const TABS = [
 ];
 
 const SORTS = [
+  { id: 'area', label: '가까운 구 순' },
   { id: 'apply', label: '접수 일정 순' },
   { id: 'use', label: '이용일 빠른 순' },
-  { id: 'area', label: '가까운 구 순' },
 ];
 
 const STATUS_LABEL = { open: '접수중', upcoming: '접수예정', full: '예약마감', closed: '종료' };
@@ -53,13 +56,14 @@ const ms = (iso) => (iso ? new Date(iso).getTime() : Infinity);
 const timePart = (iso) => (iso ? iso.slice(11) : null); // "10:00:00+09:00"
 
 export default function App() {
-  const [settings, setSettings] = useSettings();
+  const [settings, setSettings, applyRemote] = useSettings();
+  const sync = useSync(settings, applyRemote); // 구글 로그인 동기화 (로그인 전에는 아무것도 불러오지 않음)
   const { courses, meta, loading } = useCourses();
   const isDesktop = useMedia('(min-width: 900px)');
 
   const [tab, setTab] = useState('all');
   const [scope, setScope] = useState('near'); // near | all
-  const [sort, setSort] = useState('apply');
+  const [sort, setSort] = useState('area'); // 항상 "가까운 구 순"으로 시작
   const [view, setView] = useState('list'); // 폰 하단 탭: calendar | list (처음엔 목록)
   const [cats, setCats] = useState([]);
   const [showClosed, setShowClosed] = useState(false);
@@ -96,6 +100,16 @@ export default function App() {
   // 샘플일 때는 샘플이 도심 쪽 기관 위주라서 처음부터 서울 전체로 보여줌
   // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
   useEffect(() => { if (!loading && meta.isSample) setScope('all'); }, [loading, meta.isSample]);
+
+  // 합치기 링크(#import=...)로 열었으면: 이 기기의 찜·숨김·메모에 합침 (지금 있는 내용은 지우지 않음)
+  useEffect(() => {
+    if (!window.location.hash.startsWith('#import=')) return;
+    const r = parseShareHash(window.location.hash);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    if (r.error) { window.alert(r.error); return; }
+    if (!window.confirm('링크에 담긴 찜·숨김·메모를 이 기기에 합칠까요?\n(지금 있는 내용은 지워지지 않아요)')) return;
+    setSettings((cur) => ({ ...cur, ...mergeUnion(pickSync(cur), r.settings, { prefs: 'local' }) }));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!optionsOpen) return undefined;
@@ -708,7 +722,7 @@ export default function App() {
           )}
           <button className="grade-chip" onClick={() => setSettingsOpen(true)} aria-label="아이·지역 설정">
             설정
-            <small>아이 {kids.length}명</small>
+            <small>아이 {kids.length}명{sync.user ? ' · ☁' : ''}</small>
           </button>
         </div>
       </header>
@@ -839,7 +853,7 @@ export default function App() {
         <NoteSheet key={noteRow.course.id} orig={noteRow.orig} note={noteRow.note} onSave={(n) => saveNote(noteRow.course.id, n)} onClose={() => setNoteFor(null)} />
       )}
 
-      {settingsOpen && <Settings settings={settings} setSettings={setSettings} now={now} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings settings={settings} setSettings={setSettings} now={now} sync={sync} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

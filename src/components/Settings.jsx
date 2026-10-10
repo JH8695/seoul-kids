@@ -1,12 +1,12 @@
 import { gradeLabel, gradeOn } from '../lib/grade';
 import { useState } from 'react';
 import AreaPicker from './AreaPicker';
-import { buildExport, parseImport } from '../lib/backup';
+import { buildExport, buildShareLink, parseImport } from '../lib/backup';
 
 const YEARS = [];
 for (let y = 2012; y <= 2025; y++) YEARS.push(y);
 
-export default function Settings({ settings, setSettings, now, onClose }) {
+export default function Settings({ settings, setSettings, now, sync, onClose }) {
   const [exportText, setExportText] = useState('');
   const [importText, setImportText] = useState('');
   const [backupMsg, setBackupMsg] = useState('');
@@ -16,6 +16,16 @@ export default function Settings({ settings, setSettings, now, onClose }) {
       setBackupMsg('복사했어요. 다른 기기의 "가져오기" 칸에 붙여넣으세요.');
     } catch {
       setBackupMsg('자동 복사가 안 돼요. 위 글을 길게 눌러 직접 복사해 주세요.');
+    }
+  };
+  const doShareLink = async () => {
+    const link = buildShareLink(settings, `${window.location.origin}${window.location.pathname}`);
+    try {
+      await navigator.clipboard.writeText(link);
+      setBackupMsg('링크를 복사했어요. 다른 기기에서 열면 합칠지 물어봐요. (메시지 앱에 붙여넣어 나에게 보내면 편해요)');
+    } catch {
+      setExportText(link);
+      setBackupMsg('자동 복사가 안 돼요. 아래 글을 길게 눌러 직접 복사해 주세요.');
     }
   };
   const doImport = () => {
@@ -45,6 +55,34 @@ export default function Settings({ settings, setSettings, now, onClose }) {
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet tall" role="dialog" aria-label="설정" onClick={(e) => e.stopPropagation()}>
         <h2>우리 아이 설정</h2>
+
+        {sync && (
+          <section className="sync-box">
+            <h3>☁️ 폰·PC 동기화 (Google)</h3>
+            {sync.user ? (
+              <>
+                <p className="sync-user">{sync.user.name} <small>{sync.user.email}</small></p>
+                <p className="hint">
+                  {{ syncing: '동기화 중…', ok: '동기화됨', offline: '오프라인 · 연결되면 다시 시도해요', loading: '연결 중…' }[sync.phase] ?? ''}
+                  {sync.phase === 'ok' && sync.last ? ` · ${new Date(sync.last).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                </p>
+                {sync.error && <p className="hint warn-text">{sync.error}</p>}
+                <div className="note-actions">
+                  <button className="outline" onClick={sync.syncNow}>지금 동기화</button>
+                  <button className="outline" onClick={sync.signOut}>로그아웃</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="hint">구글로 로그인하면 이 기기의 찜·숨김·메모·설정이 계정에 저장돼요. 다른 기기에서도 같은 계정으로 로그인하면 똑같이 보여요. 처음 연결할 때는 양쪽 내용을 합쳐요.</p>
+                <button className="primary" disabled={sync.phase === 'loading'} onClick={sync.signIn}>
+                  {sync.phase === 'loading' ? '연결 중…' : 'Google로 로그인'}
+                </button>
+                {sync.error && <p className="hint warn-text">{sync.error}</p>}
+              </>
+            )}
+          </section>
+        )}
 
         <div className="ed-list">
           {settings.kids.map((k) => (
@@ -95,6 +133,7 @@ export default function Settings({ settings, setSettings, now, onClose }) {
           <summary>다른 기기로 옮기기 (내보내기 / 가져오기)</summary>
           <div className="backup-body">
             <p className="hint">설정, 찜, 숨긴 것, 메모를 글 하나로 옮겨요. 폰에서 내보내서 PC에 가져오는 식으로 쓰세요.</p>
+            <button className="outline" onClick={doShareLink}>합치기 링크 복사 (다른 기기에서 열면 합쳐요)</button>
             <button className="outline" onClick={() => { setExportText(buildExport(settings)); setBackupMsg(''); }}>내보내기 글 만들기</button>
             {exportText && (
               <>

@@ -30,6 +30,8 @@ function resolveDate(m, d, startYmd, endYmd, nowYear) {
 
 const MD = String.raw`(\d{1,2})\s*(?:\/|월)\s*(\d{1,2})\s*일?`; // 12/7, 12월 7일
 const RANGE = new RegExp(String.raw`(?<![\d/])${MD}\s*(?:\([^)]*\))?\s*[~～\-]\s*${MD}`, 'g');
+// 제목 끝의 날짜 코드 "(261023)" = 2026년 10월 23일 (괄호 안의 여섯 자리: 연·월·일 두 자리씩)
+const YYMMDD = /[(\[]\s*(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\s*[)\]]/g;
 const SINGLE_SLASH = /(?<![\d/])(\d{1,2})\s*\/\s*(\d{1,2})(?![\d/])/g;
 const SINGLE_KOR = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/g;
 const MONTH_RANGE = /(?<![가-힣\d])(\d{1,2})\s*월\s*[~～\-]\s*(\d{1,2})\s*월/g;
@@ -112,6 +114,15 @@ export function titleInfo(course, nowYear = new Date().getFullYear()) {
   const dates = new Set();
   const intervals = [];
 
+  // 0) 날짜 코드 "(261023)" — 이용 기간 안에 들어오는 날짜일 때만 인정
+  rest = rest.replace(YYMMDD, (m, yy, mm, dd) => {
+    const y = 2000 + +yy;
+    if (+dd > daysIn(y, +mm)) return m;
+    const ymd = `${y}-${mm}-${dd}`;
+    if ((startYmd && ymd < startYmd) || (endYmd && ymd > endYmd)) return m;
+    dates.add(ymd);
+    return ' ';
+  });
   // 1) 날짜 범위 "10/15~11/2"
   rest = rest.replace(RANGE, (m, m1, d1, m2, d2) => {
     const a = resolveDate(+m1, +d1, startYmd, endYmd, nowYear);
@@ -174,7 +185,7 @@ const DAYISH_REMOVE = new RegExp(
 /** 날짜·월·요일을 뗀 제목 (같은 프로그램의 회차끼리 같아지도록) */
 export function stripTitle(title) {
   let t = String(title ?? '');
-  t = t.replace(RANGE, ' ').replace(SINGLE_KOR, ' ').replace(SINGLE_SLASH, ' ');
+  t = t.replace(YYMMDD, ' ').replace(RANGE, ' ').replace(SINGLE_KOR, ' ').replace(SINGLE_SLASH, ' ');
   t = t.replace(MONTH_RANGE, ' ').replace(MONTH, ' ');
   // 요일 표기뿐인 괄호는 통째로 뗌: "(휴일, 토)", "(토)", "[주말/토 오후]"
   t = t.replace(/[(\[（]([^)\]）]*)[)\]）]/g, (m, inner) => (inner.replace(DAYISH_REMOVE, '') === '' ? ' ' : m));

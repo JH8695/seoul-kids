@@ -487,3 +487,9 @@ body { overflow-x: hidden; }
 .backup > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 8px 0; }
 .backup-body { display: grid; gap: 8px; padding-bottom: 10px; }
 .backup button:disabled { opacity: .5; }
+
+/* ===== 구글 동기화 ===== */
+.sync-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; display: grid; gap: 8px; background: var(--surface); }
+.sync-box h3 { margin: 0; font-size: 15px; }
+.sync-user { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.sync-user small { font-weight: 400; color: var(--muted); margin-left: 4px; }
