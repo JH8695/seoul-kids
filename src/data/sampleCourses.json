@@ -30,6 +30,7 @@
    "timeKnown": false,
    "weekdays": null,
    "recurrence": null,
+   "detailDates": null,
    "applyStart": "2026-09-30T10:00:00+09:00",
    "applyEnd": "2026-10-11T17:00:00+09:00",
    "detailTarget": null,
@@ -61,6 +62,7 @@
    "timeKnown": false,
    "weekdays": null,
    "recurrence": null,
+   "detailDates": null,
    "applyStart": "2026-08-14T10:00:00+09:00",
    "applyEnd": "2026-08-21T17:00:00+09:00",
    "detailTarget": null,
@@ -92,6 +94,7 @@
    "timeKnown": true,
    "weekdays": null,
    "recurrence": null,
+   "detailDates": null,
    "applyStart": "2026-08-24T10:00:00+09:00",
    "applyEnd": "2026-11-15T17:00:00+09:00",
    "detailTarget": null,
@@ -123,6 +126,11 @@
    "timeKnown": true,
    "weekdays": null,
    "recurrence": null,
+   "detailDates": [
+    "2026-10-06",
+    "2026-10-13",
+    "2026-10-27"
+   ],
    "applyStart": "2026-09-28T10:00:00+09:00",
    "applyEnd": "2026-10-26T17:00:00+09:00",
    "detailTarget": null,
@@ -155,6 +163,9 @@
    "timeKnown": true,
    "weekdays": null,
    "recurrence": null,
+   "detailDates": [
+    "2026-10-10"
+   ],
    "applyStart": "2024-10-01T00:00:00+09:00",
    "applyEnd": "2026-10-31T00:00:00+09:00",
    "detailTarget": null,
@@ -189,6 +200,7 @@
     6
    ],
    "recurrence": "격주 토",
+   "detailDates": null,
    "applyStart": "2026-09-22T10:00:00+09:00",
    "applyEnd": "2026-10-02T18:00:00+09:00",
    "detailTarget": "초등학생 (전 학년) 자녀와 부모 1인",
@@ -220,6 +232,7 @@
    "timeKnown": true,
    "weekdays": null,
    "recurrence": null,
+   "detailDates": null,
    "applyStart": "2026-09-20T10:00:00+09:00",
    "applyEnd": "2026-10-30T17:30:00+09:00",
    "detailTarget": "누구나",
@@ -253,6 +266,7 @@
     0
    ],
    "recurrence": "매주 일",
+   "detailDates": null,
    "applyStart": "2026-03-09T00:00:00+09:00",
    "applyEnd": "2026-10-25T00:02:00+09:00",
    "detailTarget": "초등학생을 포함한 가족",
@@ -286,6 +300,7 @@
     0
    ],
    "recurrence": "매주 일",
+   "detailDates": null,
    "applyStart": "2026-03-09T00:01:00+09:00",
    "applyEnd": "2026-10-25T00:02:00+09:00",
    "detailTarget": "초등학생을 포함한 가족",
@@ -319,6 +334,7 @@
     6
    ],
    "recurrence": "매주 토",
+   "detailDates": null,
    "applyStart": "2026-03-09T00:01:00+09:00",
    "applyEnd": "2026-10-31T00:02:00+09:00",
    "detailTarget": "제한없음",

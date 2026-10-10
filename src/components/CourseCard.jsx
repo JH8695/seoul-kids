@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fmtClassSchedule, fmtDateTime, daysUntil } from '../lib/format';
+import { fmtClassSchedule, fmtDateTime, fmtTime, daysUntil } from '../lib/format';
 import { CATEGORIES } from '../data/config';
 import { REASON_LABEL } from '../lib/audience';
 import { fmtMyDate } from '../lib/mydates';
@@ -35,7 +35,7 @@ export function KidPills({ kidMatches }) {
  */
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
-  needDetail, online, standing, chips, actions, note, onNote,
+  needDetail, online, standing, dateSource, chips, actions, note, onNote,
 }) {
   const [open, setOpen] = useState(false);
   const [imgOk, setImgOk] = useState(true);
@@ -130,7 +130,17 @@ export default function CourseCard({
         <div>
           <dt>이용</dt>
           <dd>
-            {fmtClassSchedule(course)}
+            {course.datesList?.length > 1 ? (
+              <>
+                {course.datesList.map(fmtMyDate).join(' · ')}
+                {course.timeKnown && course.classStart && fmtTime(course.classStart) !== '00:00'
+                  ? ` · ${fmtTime(course.classStart)}–${fmtTime(course.classEnd ?? course.classStart)}`
+                  : ''}
+              </>
+            ) : (
+              fmtClassSchedule(course)
+            )}
+            {dateSource === 'detail' && <span className="pill">설명 기준 날짜</span>}
             {needDetail && <span className="pill warn">요일은 상세 확인</span>}
             {note?.dates?.length > 0 && <span className="pill">내 날짜 기준</span>}
           </dd>

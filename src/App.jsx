@@ -80,6 +80,15 @@ export default function App() {
   const [collapsedAreas, setCollapsedAreas] = useState(() => new Set()); // 접어 둔 구(목록·달력 공통)
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // 접수 상태 안내(한 줄 공지): 닫으면 그날은 다시 안 나오고, 다음 날 열면 다시 보여줘요
+  const [noticeOpen, setNoticeOpen] = useState(() => {
+    try { return localStorage.getItem('seoulkids:notice:day') !== toYmd(new Date()); } catch { return true; }
+  });
+  const dismissNotice = () => {
+    setNoticeOpen(false);
+    try { localStorage.setItem('seoulkids:notice:day', toYmd(new Date())); } catch { /* ignore */ }
+  };
+
   const days = settings.days ?? [];
   const phoneCalendar = !isDesktop && view === 'calendar';
   const effDays = useMemo(() => (phoneCalendar ? [] : days), [phoneCalendar, days]);
@@ -147,7 +156,13 @@ export default function App() {
         // 내가 적은 날짜가 있으면 제목에서 읽은 일정보다 항상 우선
         const note = notes[c.id] ?? null;
         const myDates = note?.dates?.length ? [...note.dates].sort() : null;
-        const tinfo = myDates ? { dates: myDates, intervals: null, weekdays: null } : titleInfo(c, now.getFullYear());
+        // 우선순위: 내 날짜 > 제목에 적힌 날짜 > 상세 설명에서 읽은 운영일 > 제목의 월·요일
+        const titleBase = titleInfo(c, now.getFullYear());
+        let tinfo = titleBase;
+        let dateSource = null;
+        if (myDates) { tinfo = { dates: myDates, intervals: null, weekdays: null }; dateSource = 'mine'; }
+        else if (titleBase.dates) dateSource = 'title';
+        else if (c.detailDates?.length) { tinfo = { dates: c.detailDates, intervals: null, weekdays: null }; dateSource = 'detail'; }
         const online = isOnline(c);
         const titleTarget = extractTitleTarget(c.title);
 
@@ -195,6 +210,10 @@ export default function App() {
           disp.classStart = `${ds[0]}T${timePart(c.classStart)}`;
           disp.classEnd = `${ds[ds.length - 1]}T${timePart(c.classEnd ?? c.classStart)}`;
         }
+        if (tinfo.dates?.length > 1) {
+          const upcoming = tinfo.dates.filter((d) => d >= todayYmd);
+          disp.datesList = upcoming.length ? upcoming : tinfo.dates;
+        }
         if (tinfo.weekdays && !disp.recurrence) {
           const names = tinfo.weekdays.map((d) => DAYCH[d]).join('·');
           disp.recurrence = tinfo.weekdays.length === 1 ? `${names}요일` : names;
@@ -203,6 +222,7 @@ export default function App() {
         return {
           orig: c,
           note,
+          dateSource,
           course: disp,
           status,
           kidMatches,
@@ -407,6 +427,7 @@ export default function App() {
       fav={isFavRow(e)}
       onToggleFav={() => toggleFav([e])}
       standing={e.standing}
+      dateSource={e.dateSource}
       actions={actionsFor(e, [e])}
       note={e.note}
       onNote={() => setNoteFor(e.course.id)}
@@ -720,12 +741,18 @@ export default function App() {
           {isDesktop && !meta.isSample && meta.fetchedAt && (
             <span className="stamp">마지막 업데이트 {fmtFetchedAt(meta.fetchedAt)}<br />수집된 프로그램 {courses.length}건</span>
           )}
-          <button className="grade-chip" onClick={() => setSettingsOpen(true)} aria-label="아이·지역 설정">
-            설정
-            <small>아이 {kids.length}명{sync.user ? ' · ☁' : ''}</small>
+          <button className="grade-chip" onClick={() => setSettingsOpen(true)} aria-label="설정">
+            설정{sync.user ? ' ☁' : ''}
           </button>
         </div>
       </header>
+
+      {noticeOpen && (
+        <div className="notice" role="note">
+          <span>ⓘ 접수 상태는 서울시 공개 데이터 기준이라 실제와 다를 수 있어요. 신청 전에 서울시 사이트에서 확인하세요.</span>
+          <button type="button" aria-label="공지 닫기" onClick={dismissNotice}>✕</button>
+        </div>
+      )}
 
       {!loading && meta.isSample && (
         <div className="banner">

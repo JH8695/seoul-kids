@@ -65,6 +65,7 @@ export default function GroupCard({ members, fav, onToggleFav, home, getActions,
       needDetail={sel.needDetail}
       online={sel.online}
       standing={sel.standing}
+      dateSource={sel.dateSource}
       actions={getActions(sel)}
       note={sel.note}
       onNote={() => onNote(sel.course.id)}

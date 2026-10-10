@@ -493,3 +493,12 @@ body { overflow-x: hidden; }
 .sync-box h3 { margin: 0; font-size: 15px; }
 .sync-user { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .sync-user small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+
+/* ===== 한 줄 공지 · 설정 버튼 ===== */
+.notice {
+  display: flex; align-items: flex-start; gap: 8px; margin: 10px 12px 0; padding: 8px 8px 8px 12px;
+  border-radius: 10px; background: #e8eef5; color: #34495e; font-size: 13px; line-height: 1.5;
+}
+.notice span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.notice button { border: 0; background: transparent; color: inherit; font-size: 15px; padding: 2px 8px; }
+.grade-chip { white-space: nowrap; }

@@ -89,7 +89,7 @@ function weekdaysFromTitle(title) {
     m[1].split(/[\s,·/]+/).filter(Boolean).forEach((c) => days.add(DAYCH.indexOf(c)));
   }
   for (const m of title.matchAll(new RegExp(`(?<![가-힣\\d])([${DAYCH}])요일`, 'g'))) days.add(DAYCH.indexOf(m[1]));
-  if (/(?<![가-힣])주말(?![가-힣])/.test(title)) weekend = true;
+  if (/주말(?![가-힣])/.test(title)) weekend = true; // "가족주말"처럼 앞말에 붙은 것도 ("주말농장"은 제외)
   if (/(?<![가-힣])평일(?![가-힣])/.test(title)) weekday = true;
 
   if (days.size) return [...days].sort((a, b) => a - b); // 요일이 적혀 있으면 "주말"·"휴일"보다 우선 (예: "휴일, 토" → 토)
@@ -227,13 +227,17 @@ export function chipLabel(course, info) {
 // 달력의 모든 날에 찍혀 숫자를 부풀리므로, 달력·목록에서 따로 모아 접어 둡니다.
 
 // 수시·상시·상설·연중·매일은 뒤에 모집/신청/운영/예약 무엇이 붙어도 상시로 봄
-const STANDING_WORDS = /수시|상시|상설|연중|매일|운영\s*안내|운영\s*일정|전시\s*해설\s*예약|관람\s*예약/;
+const STANDING_WORDS = /수시|상시|상설|연중|연간|매일|운영\s*안내|운영\s*일정|전시\s*해설\s*예약|관람\s*예약/;
 const hm = (iso) => (iso && iso.length >= 16 ? +iso.slice(11, 13) * 60 + +iso.slice(14, 16) : null);
 const dayNum = (ymd) => Math.round(Date.parse(`${ymd}T00:00:00Z`) / 86400000);
+
+// 서울형 키즈카페처럼 시간대를 골라 시설을 예약하는 것은 행사가 아니라 상시 이용 시설
+const KIDS_CAFE = /키즈\s*카페/;
 
 export function isStanding(course, info) {
   if (info?.dates?.length) return false; // 날짜가 적혀 있으면 정해진 회차
   if (STANDING_WORDS.test(course.title ?? '')) return true;
+  if (KIDS_CAFE.test(`${course.title ?? ''} ${course.place ?? ''} ${course.category ?? ''}`)) return true;
   const s = ymdOfIso(course.classStart);
   const e = ymdOfIso(course.classEnd);
   const longWindow = !!(s && e && dayNum(e) - dayNum(s) >= 21);

@@ -1,6 +1,7 @@
 // 서울시 공공서비스예약(OpenAPI) 한 줄(row) → 앱에서 쓰는 강좌 객체로 바꾸는 변환기.
 // 네트워크를 쓰지 않는 순수 함수만 모아 두어서 test/ 에서 바로 검증할 수 있어요.
 import { statusOf } from '../src/lib/status.js';
+import { parseDetailSchedule } from './schedule.mjs';
 
 // 수집할 서비스 목록. 체육시설·시설대관 등을 더 보고 싶으면 여기에 한 줄 추가하면 돼요.
 export const SERVICES = [
@@ -125,7 +126,13 @@ export function normalizeRow(row, source, now = Date.now()) {
   const ed = day(row.SVCOPNENDDT);
   const classStart = bg ? `${bg}T${timeKnown ? vMin : '00:00'}:00+09:00` : null;
   const classEnd = ed ? `${ed}T${timeKnown ? vMax : '00:00'}:00+09:00` : null;
-  const { weekdays, recurrence } = parseWeekdays(title, detail);
+  let { weekdays, recurrence } = parseWeekdays(title, detail);
+  // 상세 설명의 "운영일 : 17일,24일(토)" 같은 줄에서 실제 운영 날짜·요일을 읽음
+  const sched = parseDetailSchedule(detail, { title, classStart, classEnd });
+  if (!weekdays && sched.weekdays) {
+    weekdays = sched.weekdays;
+    recurrence = sched.weekdays.map((d) => DAYCH[d]).join('·');
+  }
   const place = (row.PLACENM || '').trim();
   const c = {
     id: row.SVCID,
@@ -149,6 +156,7 @@ export function normalizeRow(row, source, now = Date.now()) {
     timeKnown,
     weekdays,
     recurrence,
+    detailDates: sched.dates,
     applyStart: toIso(row.RCPTBGNDT),
     applyEnd: toIso(row.RCPTENDDT),
     detailTarget: parseDetailTarget(detail),
