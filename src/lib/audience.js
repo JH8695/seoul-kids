@@ -26,6 +26,12 @@ const NOT_DISABLED = /비장애|통합|일반/;
 const TARGETED = /사회적\s*배려|배려\s*(?:대상|계층|자)|저소득|취약\s*계층|기초\s*생활|차상위|수급자|한부모|조손|다문화|북한이탈|새터민|국가유공|보훈|위기\s*(?:청소년|가정)/;
 const NOT_TARGETED = /일반|누구나|모두|통합/;
 const ADULT_IN_TARGET = /성인|청년|어르신|시니어|직장인|중장년/;
+// 어린이집·지역아동센터처럼 기관이 단위로 신청하는 대상
+const INSTITUTION = /어린이집|지역아동센터|아동센터|학교\s*단체/;
+// 부모(예비 부모)가 대상: 난임·임산부·태교·예비부부·신혼 (제목에는 "난임"처럼 분명한 말만 봄)
+const ADULT_ONLY_TARGET = /난임|임산부|임부|임신|태교|예비\s*(?:부부|부모|맘|아빠)|신혼|산모|출산\s*(?:준비|예정)/;
+const ADULT_ONLY_TITLE = /난임|임산부|임신부|예비\s*부부|신혼부부/;
+const KID_IN_TARGET = /어린이|아동|초등|유아|자녀/;
 const ADULT_TITLE = /성인|시니어|어르신|직장인|중장년|청년|50\s*세|60\s*세|65\s*세/;
 // 나이·학년 정보가 들어 있는 말 (괄호 안에 이런 말이 있으면 "제한없음"이 아님)
 const AGE_INFO = /\d+\s*세|학년|초등|유아|어린이|아동|가족|청소년|성인|청년|어르신|시니어|\d{4}년생/;
@@ -51,6 +57,11 @@ export function isUnrestricted(targetText) {
 export function excludedReason(course) {
   const text = `${course.title ?? ''} ${course.targetText ?? ''}`;
   if (GROUP.test(text) && !NOT_GROUP.test(text)) return 'group';
+  // 어린이집 등 기관 단위로 신청하는 프로그램(예: 대상 "유아(어린이집 (5~7세))", 신청 1회에 10~30명)은 단체 전용
+  if (INSTITUTION.test(text) && !NOT_GROUP.test(text) && !/가족|보호자|동반|부모/.test(text)) return 'group';
+  // 임산부·난임·태교 등 부모(예비 부모)가 대상인 프로그램은 아이 대상이 아님. 제목의 "태교숲" 같은 장소 이름에 속지 않도록 대상 칸으로 판단
+  const target = course.targetText ?? '';
+  if ((ADULT_ONLY_TARGET.test(target) || ADULT_ONLY_TITLE.test(course.title ?? '')) && !KID_IN_TARGET.test(target)) return 'adult';
   if (DISABLED.test(text) && !NOT_DISABLED.test(text)) return 'disabled';
   if (TARGETED.test(text) && !NOT_TARGETED.test(text)) return 'targeted';
   return null;

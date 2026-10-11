@@ -52,4 +52,20 @@ assert.equal(audienceOf(C('아차산 치유의 숲길 - 사회적 배려 대상�
 // 여러 연령 대상 표시
 assert.equal(audienceOf(C('구의문화유산 견학', '성인, 청년, 청소년, 초등학생'), M('match')).note, '여러 연령 대상');
 
+// 어린이집 등 기관 대상은 단체 전용
+assert.equal(excludedReason(C('2026유아생태학교(10월,가을나들이)', '유아(어린이집 (5~7세))')), 'group');
+assert.equal(excludedReason(C('숲 체험', '어린이집 원아')), 'group');
+assert.equal(excludedReason(C('숲 체험', '어린이집 원아 및 개인')), null); // 개인도 가능
+assert.equal(excludedReason(C('숲 체험', '유아(어린이집 다니는 아이와 보호자 동반)')), null); // 보호자 동반 가족
+assert.equal(audienceOf(C('2026유아생태학교(10월,가을나들이)', '유아(어린이집 (5~7세))'), M('match')).reason, 'group');
+
+// 난임·임산부 등 부모 대상 → 성인 대상
+assert.equal(excludedReason(C('우장산 녹색복지센터 (6월~11월) 헤아림 , 토닥정원애 들다 (난임부부)', '가족(난임), 성인(난임), 여성(난임부부), 주부(난임부부 )')), 'adult');
+assert.equal(excludedReason(C('우장산 녹색복지센터 (9월~11월) 숲태교 , 기다림', '가족(임산부), 성인(임산부), 여성(임산부), 주부(임산부 )')), 'adult');
+assert.equal(audienceOf(C('숲태교 기다림', '가족(임산부), 성인(임산부)'), M('match')).reason, 'adult');
+// 장소 이름의 "태교숲"만으로는 제외하지 않음 (대상이 유아·초등 가족)
+assert.equal(excludedReason(C('[성북구] 산림치유 10월 북한산 태교숲(1,3주 일요일 오후) 쓰담쓰담 행복숲(유아, 초등 가족)', '유아, 초등 가족')), null);
+// 임산부와 어린이가 함께 적힌 대상은 제외하지 않음
+assert.equal(excludedReason(C('가족 숲놀이', '임산부 동반 가족, 어린이')), null);
+
 console.log('audience.test.mjs OK');

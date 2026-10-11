@@ -1,4 +1,4 @@
-// Firebase 와 통신하는 부분만 따로 모아 둔 어댑터. 로그인하기 전에는 아예 불러오지 않아요
+// Firebase 와 통신하는 부분만 따로 모아 둔 어댑터. (같은 문서 users/{uid} 를 도서관 앱과 나눠 씀: 이 앱은 data·stamps, 도서관 앱은 library) 로그인하기 전에는 아예 불러오지 않아요
 // (처음 화면이 가볍게 열리도록 동적 import). 시험할 때는 가짜 백엔드를 끼워 넣을 수 있어요.
 import { firebaseConfig } from '../data/firebase';
 
@@ -27,7 +27,10 @@ export function loadBackend() {
               const ref = docRef(uid);
               const snap = await tx.get(ref);
               const res = fn(snap.exists() ? snap.data() : null);
-              if (res.write) tx.set(ref, { data: res.data, stamps: res.stamps, updatedAt: fsMod.serverTimestamp() });
+              // 도서관 앱이 같은 문서의 "library" 항목을 쓰므로, 이 앱은 자기 항목만 바꿈(문서 전체를 덮어쓰지 않음)
+              if (res.write) {
+                tx.set(ref, { data: res.data, stamps: res.stamps, updatedAt: fsMod.serverTimestamp() }, { mergeFields: ['data', 'stamps', 'updatedAt'] });
+              }
               return res;
             }),
         };

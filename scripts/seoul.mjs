@@ -2,6 +2,7 @@
 // 네트워크를 쓰지 않는 순수 함수만 모아 두어서 test/ 에서 바로 검증할 수 있어요.
 import { statusOf } from '../src/lib/status.js';
 import { parseDetailSchedule } from './schedule.mjs';
+import { parseNthWeeks } from '../src/lib/title.js';
 
 // 수집할 서비스 목록. 체육시설·시설대관 등을 더 보고 싶으면 여기에 한 줄 추가하면 돼요.
 export const SERVICES = [
@@ -62,6 +63,8 @@ export function parseWeekdays(title, detail = '') {
     while ((m = re.exec(text))) {
       const after = text.slice(m.index + m[0].length, m.index + m[0].length + 10);
       if (guardClosed && /^\s*(?:은|는)?\s*(?:휴관|휴무|휴원|쉽니다|쉬는)/.test(after)) continue;
+      // "휴관일 : 매주 월요일"처럼 쉬는 날 앞에 휴관 표현이 있는 경우도 운영 요일이 아님
+      if (guardClosed && /(?:휴강|휴관|휴무|휴원|쉬는)\s*(?:일|안내|일정)?\s*[:：]?\s*(?:매월|매달)?\s*$/.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;
       const set = new Set([dayIdx(m[2])]);
       if (m[3]) set.add(dayIdx(m[3]));
       if (m[4]) {
@@ -126,13 +129,24 @@ export function normalizeRow(row, source, now = Date.now()) {
   const ed = day(row.SVCOPNENDDT);
   const classStart = bg ? `${bg}T${timeKnown ? vMin : '00:00'}:00+09:00` : null;
   const classEnd = ed ? `${ed}T${timeKnown ? vMax : '00:00'}:00+09:00` : null;
-  let { weekdays, recurrence } = parseWeekdays(title, detail);
+  const pw = parseWeekdays(title, detail);
+  let weekdays = pw.weekdays;
+  let recurrence = pw.recurrence;
   // 상세 설명의 "운영일 : 17일,24일(토)" 같은 줄에서 실제 운영 날짜·요일을 읽음
   const sched = parseDetailSchedule(detail, { title, classStart, classEnd });
-  if (!weekdays && sched.weekdays) {
+  const nth = parseNthWeeks(title) ?? (sched.weekOfMonth ? { weeks: sched.weekOfMonth, weekdays: sched.weekdays } : null);
+  if (nth) {
+    // "2,3째주 토요일"
+    weekdays = nth.weekdays;
+    recurrence = `${nth.weeks.join('·')}째주 ${nth.weekdays.map((d) => DAYCH[d]).join('·')}`;
+  } else if (!weekdays && sched.weekdays) {
     weekdays = sched.weekdays;
-    recurrence = sched.weekdays.map((d) => DAYCH[d]).join('·');
+    recurrence = sched.closedWeekdays && !sched.dates ? `${sched.closedWeekdays.map((d) => DAYCH[d]).join('·')} 휴관` : sched.weekdays.map((d) => DAYCH[d]).join('·');
   }
+  // 기간 + "매주 요일"이 적혀 있으면 반복을 우선하고, 흩어진 날짜는 쓰지 않음(반복 정보가 없을 때만 날짜를 씀)
+  const recurring = !!nth || (pw.recurrence && pw.recurrence.startsWith('매주'));
+  const detailDates = recurring ? null : sched.dates;
+  const readFromDetail = !!(detailDates || sched.closedDates || sched.excludeMonths || (nth && !parseNthWeeks(title)) || (!pw.weekdays && sched.weekdays));
   const place = (row.PLACENM || '').trim();
   const c = {
     id: row.SVCID,
@@ -156,7 +170,12 @@ export function normalizeRow(row, source, now = Date.now()) {
     timeKnown,
     weekdays,
     recurrence,
-    detailDates: sched.dates,
+    weekOfMonth: nth ? nth.weeks : null,
+    detailDates,
+    detailClosed: sched.closedDates,
+    excludeMonths: sched.excludeMonths,
+    detailSrc: readFromDetail && sched.sources.length ? sched.sources : null,
+    detailHasImage: /<img\b/i.test(row.DTLCONT || '') || undefined,
     applyStart: toIso(row.RCPTBGNDT),
     applyEnd: toIso(row.RCPTENDDT),
     detailTarget: parseDetailTarget(detail),

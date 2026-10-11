@@ -1,4 +1,4 @@
-import { TZ } from './grade';
+import { TZ } from './grade.js';
 
 const ymdFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const pad = (n) => String(n).padStart(2, '0');
@@ -26,8 +26,13 @@ const fmt = (ms) => {
  *            또는 "격주"라서 실제로는 격주로 열리는 경우
  */
 export function occurrenceDates(course, daySet, todayYmd = toYmd(new Date()), tinfo = null) {
+  const exDates = new Set(tinfo?.excludeDates ?? []); // 휴강·휴관 날짜
+  const exMonths = new Set(tinfo?.excludeMonths ?? []); // "8월 제외"
+  const weeks = daySet && tinfo?.weekOfMonth?.length ? new Set(tinfo.weekOfMonth) : null; // "2,3째주"
+  const keep = (ymd) =>
+    !exDates.has(ymd) && !exMonths.has(+ymd.slice(5, 7)) && (!weeks || weeks.has(Math.ceil(+ymd.slice(8, 10) / 7)));
   if (tinfo?.dates?.length) {
-    return { dates: tinfo.dates.filter((d) => d >= todayYmd), estimated: false, loose: false };
+    return { dates: tinfo.dates.filter((d) => d >= todayYmd && !exDates.has(d)), estimated: false, loose: false };
   }
   if (!course.classStart) return { dates: [], estimated: false, loose: false };
   const s = toYmd(course.classStart);
@@ -46,7 +51,7 @@ export function occurrenceDates(course, daySet, todayYmd = toYmd(new Date()), ti
     let t = parse(from);
     const end = parse(to);
     for (let i = 0; t <= end && i < 400; i++, t += 86400000) {
-      if (!daySet || daySet.has(new Date(t).getUTCDay())) dates.push(fmt(t));
+      if ((!daySet || daySet.has(new Date(t).getUTCDay())) && keep(fmt(t))) dates.push(fmt(t));
     }
   }
   return { dates, estimated, loose: !daySet };

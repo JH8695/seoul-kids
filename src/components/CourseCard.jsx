@@ -12,6 +12,16 @@ const STATUS = {
 };
 const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
+// 날짜를 누르면 달력으로 이동 (onGo 가 없으면 그냥 글자)
+function DateLink({ onGo, ymd, children }) {
+  if (!onGo || !ymd) return <>{children}</>;
+  return (
+    <button type="button" className="datelink" onClick={() => onGo(ymd)} title="달력에서 보기">
+      {children}
+    </button>
+  );
+}
+
 export function KidPills({ kidMatches }) {
   return (
     <span className="kid-pills">
@@ -36,13 +46,22 @@ export function KidPills({ kidMatches }) {
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
   needDetail, online, standing, dateSource, chips, actions, note, onNote,
+  focusYmd, onGoCalendar, imageSchedule,
 }) {
   const [open, setOpen] = useState(false);
+  const [showSrc, setShowSrc] = useState(false);
   const [imgOk, setImgOk] = useState(true);
   const st = STATUS[status] ?? STATUS.closed;
   const startsIn = status === 'upcoming' && course.applyStart ? daysUntil(course.applyStart) : null;
   const endsIn = status === 'open' && course.applyEnd ? daysUntil(course.applyEnd) : null;
   const tags = (course.tags ?? []).filter((t) => CAT[t]);
+  const timeText =
+    course.timeKnown && course.classStart && fmtTime(course.classStart) !== '00:00'
+      ? ` · ${fmtTime(course.classStart)}–${fmtTime(course.classEnd ?? course.classStart)}`
+      : '';
+  const closed = course.closedList ?? [];
+  const closedText = closed.length ? `${closed.slice(0, 4).map(fmtMyDate).join(' · ')}${closed.length > 4 ? ' …' : ''}` : '';
+  const src = course.detailSrc ?? [];
 
   return (
     <article className={`card ${st.cls}`}>
@@ -132,15 +151,30 @@ export default function CourseCard({
           <dd>
             {course.datesList?.length > 1 ? (
               <>
-                {course.datesList.map(fmtMyDate).join(' · ')}
-                {course.timeKnown && course.classStart && fmtTime(course.classStart) !== '00:00'
-                  ? ` · ${fmtTime(course.classStart)}–${fmtTime(course.classEnd ?? course.classStart)}`
-                  : ''}
+                {course.datesList.map((d, i) => (
+                  <span key={d}>
+                    {i > 0 && ' · '}
+                    <DateLink onGo={onGoCalendar} ymd={d}>{fmtMyDate(d)}</DateLink>
+                  </span>
+                ))}
+                {timeText}
               </>
             ) : (
-              fmtClassSchedule(course)
+              <DateLink onGo={onGoCalendar} ymd={focusYmd}>{fmtClassSchedule(course)}</DateLink>
             )}
-            {dateSource === 'detail' && <span className="pill">설명 기준 날짜</span>}
+            {closedText && <span className="closed-note">휴강 {closedText}</span>}
+            {src.length > 0 && (
+              <button type="button" className="pill btn" aria-expanded={showSrc} onClick={() => setShowSrc((v) => !v)}>
+                {dateSource === 'detail' ? '설명 기준 날짜' : '설명에서 읽은 일정'} {showSrc ? '▴' : '▾'}
+              </button>
+            )}
+            {showSrc && src.length > 0 && (
+              <span className="src-box">
+                읽은 문장:
+                {src.map((t) => (<q key={t}>{t}</q>))}
+              </span>
+            )}
+            {imageSchedule && <span className="pill warn">일정이 이미지에 있을 수 있어요</span>}
             {needDetail && <span className="pill warn">요일은 상세 확인</span>}
             {note?.dates?.length > 0 && <span className="pill">내 날짜 기준</span>}
           </dd>

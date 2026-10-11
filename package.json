@@ -9,7 +9,7 @@
     "preview": "vite preview --host",
     "collect": "node scripts/collect.mjs",
     "sample": "node scripts/make-sample.mjs",
-    "test": "node test/seoul.test.mjs && node test/grade.test.mjs && node test/audience.test.mjs && node test/title.test.mjs && node test/schedule.test.mjs && node test/mydates.test.mjs && node test/backup.test.mjs && node test/sync.test.mjs"
+    "test": "node test/seoul.test.mjs && node test/grade.test.mjs && node test/audience.test.mjs && node test/title.test.mjs && node test/schedule.test.mjs && node test/calendar.test.mjs && node test/mydates.test.mjs && node test/backup.test.mjs && node test/sync.test.mjs"
   },
   "dependencies": {
     "firebase": "^13.0.0",

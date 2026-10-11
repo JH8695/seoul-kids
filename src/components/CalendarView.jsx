@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DAY_LABELS } from '../lib/weekdays';
 import { monthGrid, monthKey, occurrenceDates, toYmd, dowOfYmd } from '../lib/calendar';
 import { compareAreas } from '../lib/areas';
@@ -8,10 +8,17 @@ const HEAD = [0, 1, 2, 3, 4, 5, 6]; // 일~토
 
 const timeKey = (c) => (c.timeKnown && c.classStart ? c.classStart.slice(11, 16) : '99:99');
 
-export default function CalendarView({ rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {} }) {
+export default function CalendarView({ rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {}, focusDate = null }) {
   const today = useMemo(() => toYmd(new Date()), []);
   const [cursor, setCursor] = useState(() => ({ y: +today.slice(0, 4), m: +today.slice(5, 7) }));
   const [sel, setSel] = useState(today);
+
+  // 카드의 날짜를 눌러 들어오면 그 달·그 날짜로 이동
+  useEffect(() => {
+    if (!focusDate?.ymd) return;
+    setCursor({ y: +focusDate.ymd.slice(0, 4), m: +focusDate.ymd.slice(5, 7) });
+    setSel(focusDate.ymd);
+  }, [focusDate]);
 
   // 상시 운영(한 달 내내 열려 있는 시설 예약)은 달력 숫자에서 빼고, 선택한 날 아래에 따로 모아 접어 둠
   const normalRows = useMemo(() => rows.filter((r) => !r.standing), [rows]);
@@ -42,6 +49,19 @@ export default function CalendarView({ rows, renderItem, compact = false, groupB
     for (const [d, items] of byDate) if (d.startsWith(key)) items.forEach((x) => ids.add(x.row.course.id));
     return ids.size;
   }, [byDate, key]);
+
+  // 앞뒤 달에 몇 개가 있는지 (이 달 밖에 있는 프로그램을 놓치지 않게)
+  const monthN = (delta) => {
+    const n = cursor.y * 12 + (cursor.m - 1) + delta;
+    const y = Math.floor(n / 12);
+    const m = (n % 12) + 1;
+    const k = monthKey(y, m);
+    const ids = new Set();
+    for (const [d, items] of byDate) if (d.startsWith(k)) items.forEach((x) => ids.add(x.row.course.id));
+    return { m, n: ids.size };
+  };
+  const prevM = monthN(-1);
+  const nextM = monthN(1);
 
   const move = (delta) =>
     setCursor(({ y, m }) => {
@@ -96,18 +116,18 @@ export default function CalendarView({ rows, renderItem, compact = false, groupB
   return (
     <div className={`cal${compact ? ' compact' : ''}`}>
       <div className="cal-head">
-        <button type="button" className="cal-nav" onClick={() => move(-1)} aria-label="이전 달">‹</button>
+        <button type="button" className="cal-nav wide" onClick={() => move(-1)} aria-label={`이전 달 ${prevM.m}월, 프로그램 ${prevM.n}개`}>
+          ‹ {prevM.m}월{prevM.n > 0 && <b className="cal-n">{prevM.n}</b>}
+        </button>
         <div className="cal-title">
           <strong>{cursor.y}년 {cursor.m}월</strong>
-          <small>이 달 프로그램 {monthCount}개</small>
+          <small>
+            이 달 프로그램 {monthCount}개 ·{' '}
+            <button type="button" className="link-btn" onClick={() => { setCursor({ y: +today.slice(0, 4), m: +today.slice(5, 7) }); setSel(today); }}>오늘</button>
+          </small>
         </div>
-        <button type="button" className="cal-nav" onClick={() => move(1)} aria-label="다음 달">›</button>
-        <button
-          type="button"
-          className="link-btn"
-          onClick={() => { setCursor({ y: +today.slice(0, 4), m: +today.slice(5, 7) }); setSel(today); }}
-        >
-          오늘
+        <button type="button" className="cal-nav wide" onClick={() => move(1)} aria-label={`다음 달 ${nextM.m}월, 프로그램 ${nextM.n}개`}>
+          {nextM.m}월{nextM.n > 0 && <b className="cal-n">{nextM.n}</b>} ›
         </button>
       </div>
 

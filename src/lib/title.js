@@ -34,7 +34,7 @@ const RANGE = new RegExp(String.raw`(?<![\d/])${MD}\s*(?:\([^)]*\))?\s*[~～\-]\
 const YYMMDD = /[(\[]\s*(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\s*[)\]]/g;
 const SINGLE_SLASH = /(?<![\d/])(\d{1,2})\s*\/\s*(\d{1,2})(?![\d/])/g;
 const SINGLE_KOR = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/g;
-const MONTH_RANGE = /(?<![가-힣\d])(\d{1,2})\s*월\s*[~～\-]\s*(\d{1,2})\s*월/g;
+const MONTH_RANGE = /(?<![가-힣\d])(\d{1,2})\s*월?\s*[~～\-]\s*(\d{1,2})\s*월/g; // "9월~11월", "9~11월"
 const MONTH = /(?<![가-힣\d])(\d{1,2})\s*월(?!\s*\d)/g;
 
 const lastDay = (ymd) => `${ymd.slice(0, 8)}${pad(daysIn(+ymd.slice(0, 4), +ymd.slice(5, 7)))}`;
@@ -146,10 +146,12 @@ export function titleInfo(course, nowYear = new Date().getFullYear()) {
   rest = rest.replace(MONTH, (m, a) => { monthIvs.push(...monthIntervals(+a, startYmd, endYmd, nowYear)); return ' '; });
   intervals.push(...monthIvs);
 
+  const nth = parseNthWeeks(title);
   return {
     dates: dates.size ? [...dates].sort() : null,
     intervals: !dates.size && intervals.length ? intervals.sort((x, y) => (x[0] < y[0] ? -1 : 1)) : null,
-    weekdays: weekdaysFromTitle(title),
+    weekdays: weekdaysFromTitle(title) ?? nth?.weekdays ?? null,
+    weekOfMonth: nth?.weeks ?? null, // "2,3째주 토요일"처럼 몇째 주인지
   };
 }
 
@@ -238,16 +240,56 @@ export function isStanding(course, info) {
   if (info?.dates?.length) return false; // 날짜가 적혀 있으면 정해진 회차
   if (STANDING_WORDS.test(course.title ?? '')) return true;
   if (KIDS_CAFE.test(`${course.title ?? ''} ${course.place ?? ''} ${course.category ?? ''}`)) return true;
+  // "2,3째주 토요일"처럼 몇째 주가 정해진 것은 상시가 아님
+  if (info?.weekOfMonth?.length || course.weekOfMonth?.length) return false;
   const s = ymdOfIso(course.classStart);
   const e = ymdOfIso(course.classEnd);
-  const longWindow = !!(s && e && dayNum(e) - dayNum(s) >= 21);
+  const windowDays = s && e ? dayNum(e) - dayNum(s) : 0;
+  const longWindow = windowDays >= 21;
   // 평일 매일(월~금)이나 매일 반복되는 장기 프로그램은 달력에서 모든 평일에 찍히므로 상시로 봄
   const days = info?.weekdays ?? (course.weekdays && course.weekdays.length ? course.weekdays : null);
   if (days) return days.length >= 5 && longWindow;
+  // 날짜도 요일도 달도 없이 이용 기간이 반년 이상이면 상시 이용 시설로 봄
+  if (!info?.intervals?.length && windowDays >= 180) return true;
   // 요일 정보 없이 한 달 가까이, 하루 6시간 이상 열려 있으면 상시 운영으로 봄
   if (!s || !e || !course.timeKnown) return false;
   const a = hm(course.classStart);
   const b = hm(course.classEnd);
   if (a == null || b == null) return false;
   return dayNum(e) - dayNum(s) >= 20 && b - a >= 360;
+}
+
+// ---- 몇째 주 무슨 요일 -------------------------------------------------------
+// "(1,3주 일요일 오후)", "(2주 일 오후)", "매월 2,3째주 토요일", "토요일 2,3주 오전 10시"
+const ORD = { 첫: 1, 둘: 2, 셋: 3, 넷: 4, 다섯: 5 };
+const NTH_ITEM = '(?:[1-5]|첫|둘|셋|넷|다섯)(?:\\s*째|\\s*번째)?';
+const NTH_LIST = `(${NTH_ITEM}(?:\\s*[,·/、]\\s*${NTH_ITEM}|\\s*및\\s*${NTH_ITEM})*)`;
+const WD = '[일월화수목금토]';
+const NTH_A = new RegExp(`${NTH_LIST}\\s*(?:째|번째)?\\s*주\\s*(?:차)?\\s*(${WD})(?:요일|(?![가-힣]))`, 'g');
+const NTH_B = new RegExp(`(${WD})요일?\\s*${NTH_LIST}\\s*(?:째|번째)?\\s*주(?![가-힣])`, 'g');
+const CLOSE_AFTER = /^\s*(?:은|는)?\s*(?:휴관|휴무|휴원|휴강|쉽니다|쉬는)/;
+const CLOSE_BEFORE = /(?:휴관|휴무|휴원|휴강|쉬는)\s*(?:일|안내)?\s*[:：]?\s*(?:매월|매달)?\s*$/;
+
+function readWeeks(listText) {
+  const out = new Set();
+  for (const m of listText.matchAll(/[1-5]|첫|둘|셋|넷|다섯/g)) out.add(/\d/.test(m[0]) ? +m[0] : ORD[m[0]]);
+  return [...out].sort((a, b) => a - b);
+}
+
+/** @returns { weeks: number[], weekdays: number[] } | null — 휴관 안내("첫째 주 월요일 휴관")는 제외 */
+export function parseNthWeeks(text) {
+  const t = String(text ?? '');
+  for (const re of [NTH_A, NTH_B]) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(t))) {
+      if (CLOSE_AFTER.test(t.slice(m.index + m[0].length, m.index + m[0].length + 10))) continue;
+      if (CLOSE_BEFORE.test(t.slice(Math.max(0, m.index - 12), m.index))) continue;
+      const isA = re === NTH_A;
+      const weeks = readWeeks(isA ? m[1] : m[2]);
+      const day = DAYCH.indexOf(isA ? m[2] : m[1]);
+      if (weeks.length && day >= 0) return { weeks, weekdays: [day] };
+    }
+  }
+  return null;
 }

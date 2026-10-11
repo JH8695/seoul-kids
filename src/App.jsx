@@ -7,7 +7,7 @@ import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
 import { fmtMyDate } from './lib/mydates';
 import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
-import { toYmd, dowOfYmd } from './lib/calendar';
+import { toYmd, dowOfYmd, occurrenceDates } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
 import { useSettings } from './lib/useSettings';
 import { useSync } from './lib/useSync';
@@ -19,6 +19,7 @@ import CourseCard, { KidPills } from './components/CourseCard';
 import GroupCard from './components/GroupCard';
 import Settings from './components/Settings';
 import CalendarView from './components/CalendarView';
+import AppSwitcher from './components/AppSwitcher';
 import AreaGroup from './components/AreaGroup';
 import AreaPicker from './components/AreaPicker';
 import NoteSheet from './components/NoteSheet';
@@ -78,6 +79,7 @@ export default function App() {
   const [sheet, setSheet] = useState(null); // 폰 필터 선택 창: cats | kids | area | options
   const [noteFor, setNoteFor] = useState(null); // 메모 창을 연 회차(예약 id)
   const [collapsedAreas, setCollapsedAreas] = useState(() => new Set()); // 접어 둔 구(목록·달력 공통)
+  const [calendarFocus, setCalendarFocus] = useState(null); // 카드의 날짜를 눌러 달력으로 이동 { ymd, n }
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 접수 상태 안내(한 줄 공지): 닫으면 그날은 다시 안 나오고, 다음 날 열면 다시 보여줘요
@@ -163,6 +165,15 @@ export default function App() {
         if (myDates) { tinfo = { dates: myDates, intervals: null, weekdays: null }; dateSource = 'mine'; }
         else if (titleBase.dates) dateSource = 'title';
         else if (c.detailDates?.length) { tinfo = { dates: c.detailDates, intervals: null, weekdays: null }; dateSource = 'detail'; }
+        // 날짜 계산 규칙: 몇째 주 · 제외하는 달 · 휴강일 (내가 적은 날짜에는 적용하지 않음)
+        if (!myDates) {
+          tinfo = {
+            ...tinfo,
+            weekOfMonth: tinfo.weekOfMonth ?? (c.weekOfMonth?.length ? c.weekOfMonth : null),
+            excludeDates: c.detailClosed ?? null,
+            excludeMonths: c.excludeMonths ?? null,
+          };
+        }
         const online = isOnline(c);
         const titleTarget = extractTitleTarget(c.title);
 
@@ -218,11 +229,19 @@ export default function App() {
           const names = tinfo.weekdays.map((d) => DAYCH[d]).join('·');
           disp.recurrence = tinfo.weekdays.length === 1 ? `${names}요일` : names;
         }
+        if (!myDates && c.detailClosed?.length) {
+          const upcoming = c.detailClosed.filter((d) => d >= todayYmd);
+          if (upcoming.length) disp.closedList = upcoming;
+        }
         const multiDay = c.classStart && c.classEnd && c.classStart.slice(0, 10) !== c.classEnd.slice(0, 10);
+        // 달력으로 이동할 때 쓸 첫 날짜 (카드의 날짜를 누르면 이 날로)
+        const focusYmd = occurrenceDates(disp, daySet, todayYmd, tinfo).dates[0] ?? (c.classStart ? c.classStart.slice(0, 10) : null);
         return {
           orig: c,
           note,
           dateSource,
+          focusYmd,
+          imageSchedule: !!(c.detailHasImage && !tinfo.dates && !tinfo.weekdays && !(c.weekdays && c.weekdays.length)),
           course: disp,
           status,
           kidMatches,
@@ -256,6 +275,14 @@ export default function App() {
       next.add(members[0].groupKey);
     }
     setSettings({ ...settings, favs: [...next] });
+  };
+
+  // 카드의 날짜를 누르면: 폰은 달력 탭으로, PC는 오른쪽 달력에서 그 날짜를 보여줌
+  const focusCalendar = (ymd) => {
+    if (!ymd) return;
+    setCalendarFocus({ ymd, n: Date.now() });
+    if (!isDesktop) setView('calendar');
+    else document.querySelector('.pane-cal')?.scrollTo?.({ top: 0 });
   };
 
   const hiddenKind = (e) => (hiddenSet.has(e.groupKey) ? 'group' : hiddenRoundSet.has(e.course.id) ? 'round' : null);
@@ -428,6 +455,9 @@ export default function App() {
       onToggleFav={() => toggleFav([e])}
       standing={e.standing}
       dateSource={e.dateSource}
+      focusYmd={e.focusYmd}
+      imageSchedule={e.imageSchedule}
+      onGoCalendar={focusCalendar}
       actions={actionsFor(e, [e])}
       note={e.note}
       onNote={() => setNoteFor(e.course.id)}
@@ -444,6 +474,7 @@ export default function App() {
         home={HOME}
         getActions={(sel) => actionsFor(sel, it.members)}
         onNote={setNoteFor}
+        onGoCalendar={focusCalendar}
       />
     ) : (
       renderCard(it.members[0])
@@ -601,7 +632,7 @@ export default function App() {
       <label><input type="checkbox" checked={includeOpen} onChange={(e) => setIncludeOpen(e.target.checked)} /> 대상 "제한없음"도 포함{openHidden > 0 && !includeOpen ? ` (${openHidden})` : ''}</label>
       <label><input type="checkbox" checked={showAllTargets} onChange={(e) => setShowAllTargets(e.target.checked)} /> 대상 안 맞는 것 포함 (단체·장애인 등)</label>
       {(hiddenCount > 0 || showHidden) && (
-        <label><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> 숨긴 것 다시 보기 ({hiddenCount})</label>
+        <label><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> 숨긴 것만 보기 ({hiddenCount})</label>
       )}
     </>
   );
@@ -733,10 +764,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <div>
-          <h1>서울 아이 체험</h1>
-          <p className="sub">숲체험 · 박물관 · 어린이 체험 예약을 한곳에서</p>
-        </div>
+        <AppSwitcher current="kids" title="서울 아이 체험" sub="숲체험 · 박물관 · 어린이 체험 예약을 한곳에서" />
         <div className="top-right">
           {isDesktop && !meta.isSample && meta.fetchedAt && (
             <span className="stamp">마지막 업데이트 {fmtFetchedAt(meta.fetchedAt)}<br />수집된 프로그램 {courses.length}건</span>
@@ -758,11 +786,6 @@ export default function App() {
         <div className="banner">
           지금 보이는 건 <strong>화면 확인용 샘플</strong>이에요(서울시 예약 사이트의 실제 프로그램 10건).
           인증키를 연결하면 전체 목록이 나와요.
-        </div>
-      )}
-      {!isDesktop && !meta.isSample && meta.fetchedAt && (
-        <div className="banner ok">
-          마지막 업데이트 {fmtFetchedAt(meta.fetchedAt)} · 수집된 프로그램 {courses.length}건
         </div>
       )}
       {hasErrors && (
@@ -848,17 +871,21 @@ export default function App() {
         {isDesktop ? (
           <div className="pane-right">
             <section className="pane-cal" aria-label="달력">
-              <CalendarView rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} />
+              <CalendarView rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           </div>
         ) : (
           view === 'calendar' && (
             <section className="pane-cal-m" aria-label="달력">
-              <CalendarView rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} />
+              <CalendarView rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           )
         )}
       </main>
+
+      {!isDesktop && !meta.isSample && meta.fetchedAt && (
+        <p className="foot data-stamp">마지막 업데이트 {fmtFetchedAt(meta.fetchedAt)} · 수집된 프로그램 {courses.length}건</p>
+      )}
 
       {!isDesktop && (
         <div className="viewbar">

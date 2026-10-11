@@ -502,3 +502,31 @@ body { overflow-x: hidden; }
 .notice span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .notice button { border: 0; background: transparent; color: inherit; font-size: 15px; padding: 2px 8px; }
 .grade-chip { white-space: nowrap; }
+
+/* ===== 제목 이동 메뉴 ===== */
+.switcher { position: relative; min-width: 0; }
+.switcher-h { margin: 0; font-size: inherit; }
+.switcher-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-size: 20px; font-weight: 800; text-align: left; cursor: pointer; }
+.switcher-caret { font-size: 14px; opacity: .8; }
+.switcher-menu {
+  position: absolute; left: 0; top: calc(100% + 8px); z-index: 35; margin: 0; padding: 6px; list-style: none; min-width: 220px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+.switcher-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 12px 12px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; font-size: 16px; font-weight: 600; text-decoration: none; text-align: left;
+}
+.switcher-item:hover, .switcher-item:focus-visible { background: var(--closed-bg); }
+.switcher-item.current { cursor: default; }
+.switcher-check { margin-left: auto; color: var(--open); font-weight: 800; }
+
+/* ===== 달력: 앞뒤 달 안내 · 카드의 날짜 링크 · 읽은 근거 ===== */
+.cal-nav.wide { width: auto; min-width: 64px; height: 38px; border-radius: 19px; padding: 0 10px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.cal-n { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 12px; line-height: 18px; text-align: center; }
+.cal-title small .link-btn { font-size: inherit; }
+.datelink { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; text-align: left; cursor: pointer; }
+.closed-note { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: #f8d9d6; color: #8a1f17; font-size: 12px; font-weight: 600; }
+.pill.btn { border: 0; cursor: pointer; font: inherit; font-size: 12px; }
+.src-box { display: block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--closed-bg); font-size: 12px; color: var(--muted); line-height: 1.5; }
+.src-box q { display: block; color: var(--ink); overflow-wrap: anywhere; }
+.data-stamp { text-align: center; margin: 4px 12px calc(76px + var(--safe-b)); color: var(--muted); font-size: 12px; }

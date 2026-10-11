@@ -14,7 +14,7 @@ function pickPrimary(members) {
 const CHIP_CLS = { open: 'open', upcoming: 'upcoming', full: 'closed', closed: 'closed' };
 
 /** 같은 프로그램의 여러 회차를 카드 하나로. 칩을 누르면 그 회차의 이용·접수 정보와 신청 링크가 보여요. */
-export default function GroupCard({ members, fav, onToggleFav, home, getActions, onNote }) {
+export default function GroupCard({ members, fav, onToggleFav, home, getActions, onNote, onGoCalendar }) {
   const [selId, setSelId] = useState(null);
   const sel = members.find((m) => m.course.id === selId) ?? pickPrimary(members);
 
@@ -66,6 +66,9 @@ export default function GroupCard({ members, fav, onToggleFav, home, getActions,
       online={sel.online}
       standing={sel.standing}
       dateSource={sel.dateSource}
+      focusYmd={sel.focusYmd}
+      onGoCalendar={onGoCalendar}
+      imageSchedule={sel.imageSchedule}
       actions={getActions(sel)}
       note={sel.note}
       onNote={() => onNote(sel.course.id)}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { titleInfo, extractTitleTarget, isOnline, stripTitle, groupKeyOf, chipLabel, isStanding } from '../src/lib/title.js';
+import { titleInfo, extractTitleTarget, isOnline, stripTitle, groupKeyOf, chipLabel, isStanding, parseNthWeeks } from '../src/lib/title.js';
 
 const C = (title, start, end, extra = {}) => ({
   title, classStart: `${start}T00:00:00+09:00`, classEnd: `${end}T00:00:00+09:00`, place: '온라인', targetText: '제한없음(서울시민 누구나)', ...extra,
@@ -128,5 +128,32 @@ assert.equal(st(S('서울형 키즈카페 강남구 역삼1동점', '2026-10-01'
 assert.equal(st(S('강남구 대치1동점', '2026-10-01', '2026-10-31', '10:00', '12:00', { category: '서울형키즈카페' })), true);
 assert.equal(st(S('강남구 잠원한강공원 놀이터', '2026-10-01', '2026-10-31', '10:00', '12:00', { place: '서울형 키즈카페 잠원점' })), true);
 assert.equal(st(S('숲 체험 (10/17)', '2026-10-17', '2026-10-17', '10:00', '12:00')), false);
+
+// ---- "9~11월" 범위 ----
+t = titleInfo(C('[송파책박물관] [유아(6-7세] 요리조리, 우리는 책 요리사! (9~11월)', '2026-09-05', '2026-11-28'));
+assert.deepEqual(t.intervals, [['2026-09-05', '2026-09-30'], ['2026-10-01', '2026-10-31'], ['2026-11-01', '2026-11-28']]);
+assert.equal(titleInfo(C('유아(6-7세) 체험 11월', '2026-09-05', '2026-11-28')).intervals.length, 1); // "6-7세"는 월 범위가 아님
+
+// ---- 몇째 주 무슨 요일 ----
+assert.deepEqual(parseNthWeeks('[성북구] 산림치유 10월 북한산 태교숲(1,3주 일요일 오후) 쓰담쓰담'), { weeks: [1, 3], weekdays: [0] });
+assert.deepEqual(parseNthWeeks('[성북구] 태교숲(2주 일 오후) 쑥쑥'), { weeks: [2], weekdays: [0] });
+assert.deepEqual(parseNthWeeks('매월 2,3째주 토요일 오전'), { weeks: [2, 3], weekdays: [6] });
+assert.deepEqual(parseNthWeeks('요일 및 시간 토요일 2,3주 오전 10시~12시'), { weeks: [2, 3], weekdays: [6] });
+assert.deepEqual(parseNthWeeks('첫째, 셋째 주 수요일'), { weeks: [1, 3], weekdays: [3] });
+assert.equal(parseNthWeeks('4주간 토요일마다 진행'), null); // 기간(4주 동안)이지 넷째 주가 아님
+assert.equal(parseNthWeeks('4주 과정 토요일'), null);
+assert.equal(parseNthWeeks('매주 토요일 10시'), null);
+assert.equal(parseNthWeeks('휴관일 : 매월 첫째 주 월요일'), null); // 쉬는 날
+assert.equal(parseNthWeeks('둘째 주 월요일은 휴관입니다'), null);
+// 제목의 몇째 주는 weekdays 와 weekOfMonth 로
+t = titleInfo(C('[성북구] 태교숲(1,3주 일요일 오후)', '2026-10-01', '2026-10-31'));
+assert.deepEqual(t.weekdays, [0]);
+assert.deepEqual(t.weekOfMonth, [1, 3]);
+
+// ---- 상시: 반년 이상 날짜·요일 없음 / 몇째 주는 상시 아님 ----
+assert.equal(st(S('아리수나라 어린이 체험 예약', '2024-07-01', '2026-11-30', '09:30', '17:40')), true);
+assert.equal(st({ ...S('체험관 이용', '2026-01-01', '2026-12-31', '10:00', '11:00'), timeKnown: false }), true);
+assert.equal(st(S('(10월) 세곡놀이터', '2026-01-01', '2026-12-31', '10:00', '11:00')), false); // 제목에 달이 있음
+assert.equal(st({ ...S('숲 치유', '2026-05-25', '2026-11-21', '10:00', '12:00'), weekOfMonth: [2, 3], weekdays: [6] }), false);
 
 console.log('title.test.mjs OK');
