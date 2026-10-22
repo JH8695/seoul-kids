@@ -69,6 +69,8 @@ export function matchTarget(text, grade, age, birthYear = null) {
   if (!text || !text.trim()) return { result: 'check', tags };
 
   let t = text.replace(/\s+/g, '');
+  // "제한없음(8세미만 보호자 포함 최소 2명 예약)"처럼 괄호 안이 보호자·인원·예약 안내뿐이면 나이 조건이 아니므로 뺌
+  t = t.replace(/(제한없음|누구나|전연령|연령무관)\([^)]*(?:보호자|동반|예약|최소|인원)[^)]*\)/g, '$1');
   let pos = false;
   let neg = false;
   let check = false;
@@ -127,11 +129,12 @@ export function matchTarget(text, grade, age, birthYear = null) {
   //    "N세"는 세는나이로 비교. "만 N세"는 생일에 따라 (세는나이-2) 또는 (세는나이-1) 이므로
   //    두 값이 모두 범위 안이면 해당, 모두 밖이면 비해당, 걸치면 "확인 필요".
   t = t.replace(
-    new RegExp(`(만)?(\\d{1,2})(?:${RANGE_SEP}(\\d{1,2}))?세(이상|이하)?`, 'g'),
+    new RegExp(`(만)?(\\d{1,2})(?:${RANGE_SEP}(\\d{1,2}))?세(이상|이하|미만)?`, 'g'),
     (m, man, a, b, dir) => {
       const lo = +a;
-      const hi = b ? +b : dir === '이상' ? 99 : dir === '이하' ? 0 : lo;
-      const [min, max] = dir === '이하' ? [0, lo] : [lo, hi];
+      const hi = b ? +b : dir === '이상' ? 99 : dir === '이하' || dir === '미만' ? 0 : lo;
+      // "N세 미만"은 N-1세까지, "N세 이하"는 N세까지
+      const [min, max] = dir === '미만' ? [0, lo - 1] : dir === '이하' ? [0, lo] : [lo, hi];
       if (man) {
         const inA = age - 2 >= min && age - 2 <= max;
         const inB = age - 1 >= min && age - 1 <= max;

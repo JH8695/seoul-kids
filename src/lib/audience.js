@@ -47,7 +47,8 @@ const compact = (s) => (s || '').replace(/\s+/g, '');
 export function isUnrestricted(targetText) {
   const t = compact(targetText);
   if (!t) return false;
-  for (const m of t.matchAll(/[(（]([^)）]*)[)）]/g)) if (AGE_INFO.test(m[1])) return false;
+  // 괄호 안이 보호자·예약 안내("8세미만 보호자 포함 최소 2명 예약")뿐이면 나이 조건으로 보지 않음
+  for (const m of t.matchAll(/[(（]([^)）]*)[)）]/g)) if (AGE_INFO.test(m[1]) && !/보호자|동반|예약|최소|인원/.test(m[1])) return false;
   const rest = t.replace(/[(（][^)）]*[)）]/g, '');
   if (AGE_INFO.test(rest)) return false;
   return UNRESTRICTED_TRIGGER.test(t);

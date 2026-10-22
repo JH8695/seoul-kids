@@ -252,6 +252,7 @@ export function isStanding(course, info) {
   // 날짜도 요일도 달도 없이 이용 기간이 반년 이상이면 상시 이용 시설로 봄
   if (!info?.intervals?.length && windowDays >= 180) return true;
   // 요일 정보 없이 한 달 가까이, 하루 6시간 이상 열려 있으면 상시 운영으로 봄
+  if (info?.intervals?.length) return false; // "[10월] …"처럼 제목에 달이 있으면 그 달의 프로그램
   if (!s || !e || !course.timeKnown) return false;
   const a = hm(course.classStart);
   const b = hm(course.classEnd);

@@ -530,3 +530,7 @@ body { overflow-x: hidden; }
 .src-box { display: block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--closed-bg); font-size: 12px; color: var(--muted); line-height: 1.5; }
 .src-box q { display: block; color: var(--ink); overflow-wrap: anywhere; }
 .data-stamp { text-align: center; margin: 4px 12px calc(76px + var(--safe-b)); color: var(--muted); font-size: 12px; }
+
+/* 접혀 있는 항목 안내 (요일 확인 필요 · 상시 운영) */
+.fold-hint { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.fold-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600; color: var(--ink); }

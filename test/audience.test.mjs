@@ -68,4 +68,9 @@ assert.equal(excludedReason(C('[성북구] 산림치유 10월 북한산 태교�
 // 임산부와 어린이가 함께 적힌 대상은 제외하지 않음
 assert.equal(excludedReason(C('가족 숲놀이', '임산부 동반 가족, 어린이')), null);
 
+// 제한없음 괄호 안의 보호자·예약 안내는 나이 조건이 아님
+assert.equal(isUnrestricted('제한없음(8세미만 보호자 포함 최소 2명 예약)'), true);
+assert.equal(isUnrestricted('제한없음(6세 이상)'), false); // 진짜 나이 조건
+assert.equal(audienceOf(C('[10월] [전시연계] [RAIM] [서울로봇인공지능과학관]', '제한없음(8세미만 보호자 포함 최소 2명 예약)'), M('match')).kind, 'open');
+
 console.log('audience.test.mjs OK');

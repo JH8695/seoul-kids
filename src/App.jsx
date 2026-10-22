@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, HOME } from './data/config';
 import { gradeOn, koreanAge, gradeLabel, matchTarget } from './lib/grade';
 import { statusOf } from './lib/status';
@@ -79,6 +79,13 @@ export default function App() {
   const [sheet, setSheet] = useState(null); // 폰 필터 선택 창: cats | kids | area | options
   const [noteFor, setNoteFor] = useState(null); // 메모 창을 연 회차(예약 id)
   const [collapsedAreas, setCollapsedAreas] = useState(() => new Set()); // 접어 둔 구(목록·달력 공통)
+  const unknownRef = useRef(null);
+  const standingRef = useRef(null);
+  const openFold = (ref) => {
+    if (!ref.current) return;
+    ref.current.open = true;
+    ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const [calendarFocus, setCalendarFocus] = useState(null); // 카드의 날짜를 눌러 달력으로 이동 { ymd, n }
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -93,7 +100,8 @@ export default function App() {
 
   const days = settings.days ?? [];
   const phoneCalendar = !isDesktop && view === 'calendar';
-  const effDays = useMemo(() => (phoneCalendar ? [] : days), [phoneCalendar, days]);
+  // 요일을 7개 모두 고르는 것은 "요일 필터 없음"과 같아요 (그대로 두면 요일을 모르는 프로그램이 모두 접혀 버림)
+  const effDays = useMemo(() => (phoneCalendar || days.length >= 7 ? [] : days), [phoneCalendar, days]);
   const toggleDay = (d) =>
     setSettings({ ...settings, days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d] });
   const toggleCat = (id) => setCats((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
@@ -825,6 +833,17 @@ export default function App() {
             </div>
           ) : (
             <>
+              {(unknownItems.length > 0 || standingItems.length > 0) && (
+                <p className="fold-hint">
+                  접혀 있는 항목:
+                  {unknownItems.length > 0 && (
+                    <button type="button" className="fold-btn" onClick={() => openFold(unknownRef)}>요일 확인 필요 {unknownItems.length}개</button>
+                  )}
+                  {standingItems.length > 0 && (
+                    <button type="button" className="fold-btn" onClick={() => openFold(standingRef)}>상시 운영 {standingItems.length}개</button>
+                  )}
+                </p>
+              )}
               {mainItems.length === 0 && (unknownItems.length > 0 || standingItems.length > 0) && (
                 <p className="hint">
                   {unknownItems.length > 0 ? '고른 요일이 확인된 프로그램은 없어요. 요일을 알 수 없는 프로그램은 아래에 접혀 있어요.' : '날짜가 정해진 프로그램은 없고, 상시 운영만 있어요.'}
@@ -838,13 +857,13 @@ export default function App() {
                   ))
                 : mainItems.map(renderItem)}
               {unknownItems.length > 0 && (
-                <details className="standing">
+                <details className="standing" ref={unknownRef}>
                   <summary>요일 확인 필요 {unknownItems.length}개 · 눌러서 펼치기</summary>
                   <div className="area-items">{unknownItems.map(renderItem)}</div>
                 </details>
               )}
               {standingItems.length > 0 && (
-                <details className="standing">
+                <details className="standing" ref={standingRef}>
                   <summary>상시 운영 {standingItems.length}개 · 눌러서 펼치기</summary>
                   <div className="area-items">{standingItems.map(renderItem)}</div>
                 </details>

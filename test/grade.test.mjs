@@ -34,6 +34,12 @@ const cases = [
   ['60개월 이상', 'match', 'match'],
   ['84개월 이상', 'nomatch', 'match'],
   ['유아와 영아 동반 가족', 'match', 'match'], // 유아가 함께 적힌 경우는 그대로 해당
+  // "N세 미만" · 제한없음 괄호 안의 보호자 안내
+  ['제한없음(8세미만 보호자 포함 최소 2명 예약)', 'match', 'match'],
+  ['제한없음(서울시민 누구나)', 'match', 'match'],
+  ['8세 미만', 'match', 'nomatch'],
+  ['만 7세 미만', 'match', 'nomatch'],
+  ['10세 미만', 'match', 'nomatch'],
 ];
 for (const [t, k, e] of cases) {
   assert.equal(K(t), k, `유치원: "${t}" → ${K(t)} (기대 ${k})`);
