@@ -555,3 +555,15 @@ body { overflow-x: hidden; }
 .time-row input[type="time"] { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--bg); color: var(--ink); }
 .day-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .pill.edit { background: #e6e0f7; color: #5a3fa0; }
+
+/* ===== 선택 창(메모·내 수정, 설정 등)이 폰에서 가로로 넘치지 않게 ===== */
+.sheet { overflow-x: hidden; grid-template-columns: minmax(0, 1fr); }
+.sheet > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.note-section { grid-template-columns: minmax(0, 1fr); }
+.note-section > *, .fit-row > *, .note-field > * { min-width: 0; max-width: 100%; }
+.sheet input, .sheet textarea, .sheet select { max-width: 100%; box-sizing: border-box; min-width: 0; }
+.time-row input[type="time"] { flex: 1 1 110px; min-width: 0; }
+.fit-name, .day-row, .mc-chips, .time-row { min-width: 0; }
+.note-title, .note-section h3, .hint, .sheet p { overflow-wrap: anywhere; }
+.seg3 button, .day-row .day, .gchip { min-width: 0; }
+.seg3 button { padding-left: 2px; padding-right: 2px; }
