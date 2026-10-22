@@ -39,12 +39,12 @@ export function fmtClassSchedule(c) {
   const noTime = c.timeKnown === false || fmtTime(c.classStart) === '00:00';
   if (!c.classEnd || sameDay(c.classStart, c.classEnd)) {
     if (noTime) return fmtDate(c.classStart);
-    const end = c.classEnd ? `–${fmtTime(c.classEnd)}` : '';
+    const end = c.classEnd && fmtTime(c.classEnd) !== fmtTime(c.classStart) ? `–${fmtTime(c.classEnd)}` : '';
     return `${fmtDate(c.classStart)} ${fmtTime(c.classStart)}${end}`;
   }
   const rec = c.recurrence ? `${c.recurrence} ` : '';
   const n = c.sessions ? ` · 총 ${c.sessions}회` : '';
-  const tm = noTime ? '' : ` · ${rec}${fmtTime(c.classStart)}–${fmtTime(c.classEnd)}`;
+  const tm = noTime ? '' : ` · ${rec}${fmtTime(c.classStart)}${fmtTime(c.classEnd) !== fmtTime(c.classStart) ? `–${fmtTime(c.classEnd)}` : ''}`;
   return `${fmtDate(c.classStart)}~${fmtDate(c.classEnd)}${n}${tm}`;
 }
 

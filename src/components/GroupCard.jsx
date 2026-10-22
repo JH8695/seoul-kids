@@ -69,6 +69,7 @@ export default function GroupCard({ members, fav, onToggleFav, home, getActions,
       focusYmd={sel.focusYmd}
       onGoCalendar={onGoCalendar}
       imageSchedule={sel.imageSchedule}
+      edits={sel.edits}
       actions={getActions(sel)}
       note={sel.note}
       onNote={() => onNote(sel.course.id)}

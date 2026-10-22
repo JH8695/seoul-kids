@@ -31,7 +31,7 @@ export function KidPills({ kidMatches }) {
           match.result === 'match' ? '대상에 해당' : match.result === 'check' ? '대상 확인 필요' : '대상이 아님';
         return (
           <span key={kid.id} className={`kid-pill ${match.result}`} title={title}>
-            {mark} {kid.label}
+            {mark} {kid.label}{match.edited ? ' ✎' : ''}
           </span>
         );
       })}
@@ -46,7 +46,7 @@ export function KidPills({ kidMatches }) {
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
   needDetail, online, standing, dateSource, chips, actions, note, onNote,
-  focusYmd, onGoCalendar, imageSchedule,
+  focusYmd, onGoCalendar, imageSchedule, edits = [],
 }) {
   const [open, setOpen] = useState(false);
   const [showSrc, setShowSrc] = useState(false);
@@ -57,7 +57,7 @@ export default function CourseCard({
   const tags = (course.tags ?? []).filter((t) => CAT[t]);
   const timeText =
     course.timeKnown && course.classStart && fmtTime(course.classStart) !== '00:00'
-      ? ` · ${fmtTime(course.classStart)}–${fmtTime(course.classEnd ?? course.classStart)}`
+      ? ` · ${fmtTime(course.classStart)}${course.classEnd && fmtTime(course.classEnd) !== fmtTime(course.classStart) ? `–${fmtTime(course.classEnd)}` : ''}`
       : '';
   const closed = course.closedList ?? [];
   const closedText = closed.length ? `${closed.slice(0, 4).map(fmtMyDate).join(' · ')}${closed.length > 4 ? ' …' : ''}` : '';
@@ -175,6 +175,9 @@ export default function CourseCard({
               </span>
             )}
             {imageSchedule && <span className="pill warn">일정이 이미지에 있을 수 있어요</span>}
+            {edits.filter((x) => x !== '날짜').length > 0 && (
+              <span className="pill edit">✎ 내 수정: {edits.filter((x) => x !== '날짜').join('·')}</span>
+            )}
             {needDetail && <span className="pill warn">요일은 상세 확인</span>}
             {note?.dates?.length > 0 && <span className="pill">내 날짜 기준</span>}
           </dd>

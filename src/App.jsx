@@ -9,6 +9,7 @@ import { fmtMyDate } from './lib/mydates';
 import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
 import { toYmd, dowOfYmd, occurrenceDates } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
+import { applyFit, applyTime, daysLabel, editLabels, forcedMatch } from './lib/edits';
 import { useSettings } from './lib/useSettings';
 import { useSync } from './lib/useSync';
 import { parseShareHash } from './lib/backup';
@@ -166,12 +167,17 @@ export default function App() {
         // 내가 적은 날짜가 있으면 제목에서 읽은 일정보다 항상 우선
         const note = notes[c.id] ?? null;
         const myDates = note?.dates?.length ? [...note.dates].sort() : null;
+        const editDays = !myDates && note?.days?.length ? note.days : null; // 내가 고친 요일(+몇째 주)
         // 우선순위: 내 날짜 > 제목에 적힌 날짜 > 상세 설명에서 읽은 운영일 > 제목의 월·요일
         const titleBase = titleInfo(c, now.getFullYear());
         let tinfo = titleBase;
         let dateSource = null;
         if (myDates) { tinfo = { dates: myDates, intervals: null, weekdays: null }; dateSource = 'mine'; }
-        else if (titleBase.dates) dateSource = 'title';
+        else if (editDays) {
+          // 내가 요일을 고쳤으면 제목·설명에서 읽은 날짜보다 우선 (매주/몇째 주 반복으로 계산)
+          tinfo = { dates: null, intervals: titleBase.intervals, weekdays: editDays, weekOfMonth: note.weeks?.length ? note.weeks : [] };
+          dateSource = 'edit';
+        } else if (titleBase.dates) dateSource = 'title';
         else if (c.detailDates?.length) { tinfo = { dates: c.detailDates, intervals: null, weekdays: null }; dateSource = 'detail'; }
         // 날짜 계산 규칙: 몇째 주 · 제외하는 달 · 휴강일 (내가 적은 날짜에는 적용하지 않음)
         if (!myDates) {
@@ -212,7 +218,12 @@ export default function App() {
           }
           return { kid, grade: g, match };
         });
-        const audience = audienceOf(c, kidMatches.filter((k) => activeIds.includes(k.kid.id)));
+        // 내가 고친 대상(아이별 "해당"/"해당 안 됨")이 자동 판정보다 우선
+        const autoKidMatches = kidMatches;
+        const kidMatchesF = applyFit(kidMatches, note);
+        const activeKm = kidMatchesF.filter((k) => activeIds.includes(k.kid.id));
+        let audience = audienceOf(c, activeKm);
+        if (forcedMatch(activeKm)) audience = { kind: 'kid', note: '내 수정: 해당' }; // 단체·성인 대상·제한없음 자동 숨김도 풀림
 
         // 요일: 제목 > 수집기가 읽은 요일 > 기간의 시작·끝 요일로 추정
         let daySet;
@@ -222,7 +233,7 @@ export default function App() {
         else daySet = classWeekdays(c);
 
         // 화면에 보일 이용 일정: 제목에 날짜가 있으면 그 날짜로
-        const disp = { ...c, status };
+        let disp = { ...c, status };
         if (tinfo.dates && c.classStart) {
           const use = tinfo.dates.filter((d) => d >= todayYmd);
           const ds = use.length ? use : tinfo.dates;
@@ -237,6 +248,8 @@ export default function App() {
           const names = tinfo.weekdays.map((d) => DAYCH[d]).join('·');
           disp.recurrence = tinfo.weekdays.length === 1 ? `${names}요일` : names;
         }
+        if (note?.time) disp = applyTime(disp, note.time); // 내가 고친 시간
+        if (editDays) disp.recurrence = daysLabel(note.days, note.weeks);
         if (!myDates && c.detailClosed?.length) {
           const upcoming = c.detailClosed.filter((d) => d >= todayYmd);
           if (upcoming.length) disp.closedList = upcoming;
@@ -252,13 +265,15 @@ export default function App() {
           imageSchedule: !!(c.detailHasImage && !tinfo.dates && !tinfo.weekdays && !(c.weekdays && c.weekdays.length)),
           course: disp,
           status,
-          kidMatches,
+          kidMatches: kidMatchesF,
+          autoKidMatches,
+          edits: editLabels(note),
           targetNote,
           audience,
           tinfo,
           daySet,
           online,
-          standing: isStanding(c, tinfo),
+          standing: editDays ? false : isStanding(c, tinfo), // 요일을 직접 고친 건 상시 시설로 보지 않음
           needDetail: !daySet && !tinfo.dates && !!multiDay,
           groupKey: groupKeyOf(c),
           chip: chipLabel(c, tinfo),
@@ -465,6 +480,7 @@ export default function App() {
       dateSource={e.dateSource}
       focusYmd={e.focusYmd}
       imageSchedule={e.imageSchedule}
+      edits={e.edits}
       onGoCalendar={focusCalendar}
       actions={actionsFor(e, [e])}
       note={e.note}
@@ -923,7 +939,7 @@ export default function App() {
       {!isDesktop && phoneSheets}
 
       {noteRow && (
-        <NoteSheet key={noteRow.course.id} orig={noteRow.orig} note={noteRow.note} onSave={(n) => saveNote(noteRow.course.id, n)} onClose={() => setNoteFor(null)} />
+        <NoteSheet key={noteRow.course.id} orig={noteRow.orig} note={noteRow.note} kids={kids} autoKidMatches={noteRow.autoKidMatches} onSave={(n) => saveNote(noteRow.course.id, n)} onClose={() => setNoteFor(null)} />
       )}
 
       {settingsOpen && <Settings settings={settings} setSettings={setSettings} now={now} sync={sync} onClose={() => setSettingsOpen(false)} />}

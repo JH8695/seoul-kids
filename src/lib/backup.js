@@ -1,4 +1,6 @@
 // 다른 기기로 옮기기: 설정·찜·숨김·메모를 글 하나로 내보내고 가져옵니다.
+import { cleanNote } from './edits.js';
+
 export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'favs', 'hidden', 'hiddenRounds', 'notes'];
 
 export function buildExport(settings) {
@@ -36,9 +38,8 @@ export function parseImport(text) {
     if (typeof s.notes !== 'object' || s.notes === null || Array.isArray(s.notes)) return { error: '메모 항목이 올바르지 않아요.' };
     const notes = {};
     for (const [id, n] of Object.entries(s.notes)) {
-      if (!n || typeof n !== 'object') continue;
-      const dates = Array.isArray(n.dates) ? n.dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) : [];
-      notes[id] = { text: typeof n.text === 'string' ? n.text.slice(0, 300) : '', dates };
+      const c = cleanNote(n); // 메모·내 날짜·내 수정(대상·시간·요일)을 검증해서 보존
+      if (c) notes[id] = c;
     }
     out.notes = notes;
   }
