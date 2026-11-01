@@ -153,6 +153,42 @@ export function parseDetailSchedule(detail, { title = '', classStart = null, cla
     if (dates.size > n0 && sources.length < 3) sources.push(snip(d, m.index, m[0].length));
   }
 
+  // 1-2) 며칠 안 되는 연속 기간 — "2026.11.7(토)~11.8(일)", "11월 7일(토)~8일(일)":
+  //       양 끝이 운영일이고 사이 날들도 모두 운영하는 것으로 봄. 7일을 넘는 긴 기간(이용기간)과 접수기간은 제외
+  const shortRanges = [
+    new RegExp(String.raw`(?:(20\d{2})\s*\.\s*)?(\d{1,2})\s*\.\s*(\d{1,2})\s*${LABEL}?\s*(?:~|∼|～|–)\s*(?:(?:(20\d{2})\s*\.\s*)?(\d{1,2})\s*\.\s*)?(\d{1,2})\s*${LABEL}?`, 'g'),
+    new RegExp(String.raw`(?:(20\d{2})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*${LABEL}?\s*(?:~|∼|～|–)\s*(?:(?:(20\d{2})\s*년\s*)?(\d{1,2})\s*월\s*)?(\d{1,2})\s*일\s*${LABEL}?`, 'g'),
+  ];
+  for (const re of shortRanges) {
+    while ((m = re.exec(d))) {
+      // 그룹: 앞쪽 끝 = 연·월·일·요일(2개 자리), 뒤쪽 끝 = 연·월·일·요일(2개 자리). 뒤쪽 끝은 월이 생략될 수 있음
+      const g = m.slice(1);
+      const [y1, m1, d1, la1, lb1, y2, m2, d2, la2, lb2] = g;
+      const before = d.slice(Math.max(0, m.index - 20), m.index);
+      if (SKIP_CONTEXT.test(before) || CLOSURE_BEFORE.test(before) || inClosure(m.index)) continue;
+      const l1 = la1 ?? lb1 ?? null;
+      const l2 = la2 ?? lb2 ?? null;
+      if (!(l1 || l2 || KEYWORD.test(d.slice(Math.max(0, m.index - 30), m.index)))) continue;
+      const n0 = dates.size;
+      for (const Y of y1 ? [+y1] : yrs) {
+        const mo1 = +m1;
+        const mo2 = m2 ? +m2 : mo1;
+        const Y2 = y2 ? +y2 : mo2 < mo1 ? Y + 1 : Y;
+        if (mo1 < 1 || mo1 > 12 || mo2 < 1 || mo2 > 12 || +d1 < 1 || +d1 > daysIn(Y, mo1) || +d2 < 1 || +d2 > daysIn(Y2, mo2)) continue;
+        const a = `${Y}-${pad(mo1)}-${pad(+d1)}`;
+        const b = `${Y2}-${pad(mo2)}-${pad(+d2)}`;
+        const span = Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000) + 1;
+        if (span < 2 || span > 7) continue;
+        if ((l1 && DAYCH[dowOf(a)] !== l1) || (l2 && DAYCH[dowOf(b)] !== l2)) continue; // 적힌 요일이 실제와 다르면 못 믿음
+        for (let i = 0; i < span; i++) {
+          const day = new Date(Date.parse(`${a}T12:00:00Z`) + i * 86400000).toISOString().slice(0, 10);
+          if (inWin(day, s, e)) dates.add(day);
+        }
+      }
+      if (dates.size > n0 && sources.length < 3) sources.push(snip(d, m.index, m[0].length));
+    }
+  }
+
   // 2) 월이 없는 "운영일 : 17일,24일(토)" — 월은 제목의 "/10월" 이나 이용 기간에서
   const keyRe = new RegExp(
     String.raw`(?:운영\s*일정?|운영일|일\s*시|일정|수업일|진행일|교육일|날짜)\s*[:：]?\s*((?:\d{1,2}\s*일\s*${LABEL}?${SEP}?)+)`,
@@ -329,6 +365,33 @@ export function parseTimeSlots(detail) {
     }
     slots.push({ start, end, days });
     if (sources.length < 3) sources.push(snip(d, m.index, m[0].length));
+  }
+  // 시작 시각만 나열하고 소요 시간을 따로 적은 경우: "시간 : 10시, 13시, 15시 (약 90분 소요)" → 10:00–11:30, 13:00–14:30, 15:00–16:30
+  const T1 = String.raw`(?:오전|오후)?\s*\d{1,2}\s*(?:시(?:\s*\d{1,2}\s*분|\s*반)?|:\d{2})`;
+  const listRe = new RegExp(
+    String.raw`(?:시\s*간|운영\s*시간|수업\s*시간|진행\s*시간)\s*[:：]?\s*((?:${T1}(?:\s*[,·/、]\s*|\s*및\s*)?){2,})\s*\(?\s*(?:각\s*|회당\s*|회차당\s*)?(?:약\s*)?(?:(\d{1,3})\s*분|(\d{1,2})\s*시간(?:\s*(\d{1,2})\s*분)?)\s*(?:소요|진행|동안|정도|내외)?`,
+    'g',
+  );
+  let lm;
+  while ((lm = listRe.exec(d))) {
+    const dur = lm[2] ? +lm[2] : +lm[3] * 60 + (lm[4] ? +lm[4] : 0);
+    if (!(dur >= 20 && dur <= 480)) continue;
+    const startRe = new RegExp(`(오전|오후)?\\s*(\\d{1,2})\\s*(?::(\\d{2})|시(?:\\s*(\\d{1,2})\\s*분|\\s*(반))?)`, 'g');
+    let sm;
+    const found = [];
+    while ((sm = startRe.exec(lm[1]))) {
+      const H = to24(sm[1], +sm[2], (h) => (h >= 1 && h <= 7 ? h + 12 : h));
+      const M = sm[3] != null ? +sm[3] : sm[4] != null ? +sm[4] : sm[5] ? 30 : 0;
+      if (H > 23 || M > 59) continue;
+      const startMin = H * 60 + M;
+      const endMin = startMin + dur;
+      if (endMin > 24 * 60 - 1) continue;
+      found.push({ start: hhmm(H, M), end: hhmm(Math.floor(endMin / 60), endMin % 60), days: null });
+    }
+    if (found.length >= 2) {
+      slots.push(...found);
+      if (sources.length < 3) sources.push(snip(d, lm.index, lm[0].length));
+    }
   }
   // 같은 시간대(같은 요일 표시)는 한 번만
   const seen = new Set();

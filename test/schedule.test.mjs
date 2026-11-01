@@ -106,3 +106,26 @@ assert.equal(pickTimeSlots('10:00~11:30, 13:00~14:30', '10:00', '12:00'), null);
 assert.equal(pickTimeSlots('14:00~15:20', '14:00', '15:20'), null); // 시간대가 하나면 API 값과 같으니 따로 저장하지 않음
 assert.equal(pickTimeSlots('10:00~11:30, 13:00~14:30', '00:00', '00:00'), null); // 시간을 모르는 프로그램
 console.log('schedule time-slot tests OK');
+
+// ── 점(.) 표기 기간과 시작시각 나열 (남산둘레길 사례: 서울시 공공서비스예약 S261022110550340101) ──
+{
+  const nam = W('〔남산둘레길 가을소풍〕 둘레길 자연·역사 투어', '2026-11-07', '2026-11-08');
+  const detail = 'ㅇ 일 정 : 2026.11.7(토)~11.8(일) ㅇ 시 간 : 10시, 13시, 15시 (약 90분 소요) ㅇ 참여대상 : 어린이(만7세이상)동반가족';
+  assert.deepEqual(dates(detail, nam), ['2026-11-07', '2026-11-08']);
+  assert.deepEqual(dates('일정: 11월 7일(토)~8일(일)', nam), ['2026-11-07', '2026-11-08']);
+  assert.deepEqual(dates('일정 : 11월 7일(토) ~ 11월 8일(일)', nam), ['2026-11-07', '2026-11-08']);
+  assert.deepEqual(dates('일시 2026.11.7~11.8', nam), ['2026-11-07', '2026-11-08']); // 요일이 없어도 "일시" 같은 말이 앞에 있으면
+  // 읽으면 안 되는 것: 접수 기간, 긴 이용 기간, 요일이 실제와 다른 경우, 소수점
+  assert.equal(dates('접수기간 : 2026.10.26(월)~11.6(금)', W('x', '2026-10-26', '2026-11-08')), null);
+  assert.equal(dates('운영기간 2026.3.14(토)~10.31(토) 매주 토요일', W('x', '2026-03-14', '2026-10-31')), null);
+  assert.equal(dates('일정 : 2026.11.7(일)~11.8(월)', nam), null);
+  assert.equal(dates('거리 3.5km~4.5km 코스', nam), null);
+  const sl = parseTimeSlots(detail).slots.map((x) => `${x.start}-${x.end}`);
+  assert.deepEqual(sl, ['10:00-11:30', '13:00-14:30', '15:00-16:30']);
+  assert.equal(pickTimeSlots(detail, '10:00', '16:30').slots.length, 3);
+  // 소요 시간이 없으면 끝을 모르니 읽지 않음, 시작이 하나뿐이면 읽지 않음
+  assert.deepEqual(parseTimeSlots('시간 : 10시, 13시, 15시').slots, []);
+  assert.deepEqual(parseTimeSlots('시간 : 10시 (약 90분 소요)').slots, []);
+  assert.deepEqual(parseTimeSlots('시간 : 오전 10시, 오후 2시 (각 1시간 30분 소요)').slots.map((x) => `${x.start}-${x.end}`), ['10:00-11:30', '14:00-15:30']);
+}
+console.log('schedule dotted-range tests OK');

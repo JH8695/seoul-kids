@@ -226,7 +226,7 @@ export default function CourseCard({
             {busy === 'blocked' && <span className="pill busy-no" title="찜해 둔 프로그램이라 숨기지 않았어요">⏰ 갈 수 없는 시간</span>}
             {src.length > 0 && (
               <button type="button" className="pill btn" aria-expanded={showSrc} onClick={() => setShowSrc((v) => !v)}>
-                {dateSource === 'detail' ? '설명 기준 날짜' : '설명에서 읽은 일정'} {showSrc ? '▴' : '▾'}
+                읽은 문장 {showSrc ? '▴' : '▾'}
               </button>
             )}
             {showSrc && src.length > 0 && (
