@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseDetailSchedule, parseDetailWeekdays } from '../scripts/schedule.mjs';
+import { parseDetailSchedule, parseDetailWeekdays, parseTimeSlots, pickTimeSlots } from '../scripts/schedule.mjs';
 
 const W = (title, s, e) => ({ title, classStart: `${s}T00:00:00+09:00`, classEnd: `${e}T00:00:00+09:00` });
 const dates = (detail, w) => parseDetailSchedule(detail, w).dates;
@@ -91,3 +91,18 @@ r = P('운영시간 10시~17시 휴관일 : 매월 첫째 주 월요일', W('전
 assert.equal(r.weekOfMonth, null);
 
 console.log('schedule.test.mjs OK');
+
+// ── 시간대 읽기: "10:00~11:30, 13:00~14:30" 이 10:00~14:30 한 덩어리로 합쳐지던 문제 ──
+const SL = (t) => parseTimeSlots(t).slots.map((x) => `${x.days ? x.days.join('') + ' ' : ''}${x.start}-${x.end}`);
+assert.deepEqual(SL('운영시간 : 10:00~11:30, 13:00~14:30'), ['10:00-11:30', '13:00-14:30']);
+assert.deepEqual(SL('오전반 10시~11시30분 / 오후반 오후 1시~2시 30분'), ['10:00-11:30', '13:00-14:30']);
+assert.deepEqual(SL('토요일 10:00~11:30 / 일요일 13:00~14:30'), ['6 10:00-11:30', '0 13:00-14:30']);
+assert.deepEqual(SL('접수시간 : 10:00~18:00 / 수업 14:00~15:20'), ['14:00-15:20']); // 접수 시각은 수업 시간이 아님
+assert.deepEqual(SL('| 1 | 10월 17일(토) 14:00~15:20 |'), ['6 14:00-15:20']); // "10월"의 월, "17일"의 일은 요일이 아님
+assert.deepEqual(SL('2026-10-1 ~ 11-5 운영'), []); // 날짜 범위는 시각이 아님
+// API 시간 범위(V_MIN~V_MAX)와 맞을 때만 채택
+assert.equal(pickTimeSlots('10:00~11:30, 13:00~14:30', '10:00', '14:30').slots.length, 2);
+assert.equal(pickTimeSlots('10:00~11:30, 13:00~14:30', '10:00', '12:00'), null); // 범위 밖이면 시설 이용시간 등으로 보고 버림
+assert.equal(pickTimeSlots('14:00~15:20', '14:00', '15:20'), null); // 시간대가 하나면 API 값과 같으니 따로 저장하지 않음
+assert.equal(pickTimeSlots('10:00~11:30, 13:00~14:30', '00:00', '00:00'), null); // 시간을 모르는 프로그램
+console.log('schedule time-slot tests OK');

@@ -70,6 +70,8 @@ export function applyTime(disp, time) {
   return {
     ...disp,
     timeKnown: true,
+    timeSlots: null, // 내가 시간을 고쳤으면 설명에서 읽은 시간대는 쓰지 않음
+    timeSlotSrc: null,
     classStart: `${d0}T${time.start}:00+09:00`,
     classEnd: `${d1}T${time.end ?? time.start}:00+09:00`,
   };

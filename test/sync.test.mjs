@@ -97,5 +97,25 @@ const R = (over = {}, stamps = {}) => ({ data: pickSync(S(over)), stamps });
   assert.deepEqual(r.values.favs, ['z']);
 }
 
-assert.equal(SYNC_KEYS.length, 8);
+assert.equal(SYNC_KEYS.length, 12);
+assert.ok(SYNC_KEYS.includes('busy')); // 갈 수 없는 시간도 폰·PC 가 같이 씀
+
+// 갈 수 없는 시간: 서버에 아직 없던 기존 문서는 내 기기 값을 유지, 평소엔 나중에 고친 쪽
+{
+  const mine = [{ id: 'a', days: [6], start: '10:00', end: '11:50' }];
+  const r1 = reconcile(S({ busy: mine }, { busy: 5 }), { data: { favs: [] }, stamps: { favs: 1 } });
+  assert.deepEqual(r1.values.busy, mine);
+  const r2 = reconcile(S({ busy: mine }, { busy: 5 }), { data: { busy: [] }, stamps: { busy: 9 } });
+  assert.deepEqual(r2.values.busy, []);
+}
+// 관심·제외 장소와 검색어: 처음 연결할 때 양쪽을 합침
+{
+  const local = { places: { a: { s: 'fav', n: 'A' } }, searches: { recent: ['방배'], pinned: ['유아숲'] } };
+  const remote = { places: { b: { s: 'hide', n: 'B' }, a: { s: 'hide', n: 'A' } }, searches: { recent: ['서초', '방배'], pinned: ['숲'] } };
+  const m = mergeUnion(local, remote);
+  assert.equal(m.places.a.s, 'fav'); // 같은 장소는 내 기기 것이 이김
+  assert.equal(m.places.b.s, 'hide');
+  assert.deepEqual(m.searches.pinned, ['유아숲', '숲']);
+  assert.equal(m.searches.recent[0], '방배');
+}
 console.log('sync.test.mjs OK');

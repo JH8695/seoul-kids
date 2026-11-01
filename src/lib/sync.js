@@ -3,15 +3,15 @@
 // 항목(키)마다 "마지막으로 고친 시각(stamp)"을 따로 기록해서:
 //   - 평소: 항목별로 나중에 고친 쪽을 따라요 (지운 것도 지운 대로 반영돼요)
 //   - 처음 계정에 연결할 때: 찜·숨김·메모는 양쪽 것을 합쳐요 (한쪽이 다른 쪽을 덮어써서 사라지지 않게)
-export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
 const LIST_KEYS = ['favs', 'hidden', 'hiddenRounds']; // 합칠 때 합집합으로
-const PREF_KEYS = ['kids', 'activeKids', 'areas', 'days']; // 개인 취향 설정
+const PREF_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy']; // 개인 취향 설정
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function pickSync(settings) {
   const out = {};
-  for (const k of SYNC_KEYS) out[k] = settings[k] ?? (k === 'notes' ? {} : []);
+  for (const k of SYNC_KEYS) out[k] = settings[k] ?? (k === 'notes' || k === 'places' ? {} : k === 'searches' ? { recent: [], pinned: [] } : k === 'bothKids' ? false : []);
   return out;
 }
 
@@ -33,6 +33,14 @@ export function mergeUnion(local, remote, { prefs = 'remote' } = {}) {
   const out = {};
   for (const k of LIST_KEYS) out[k] = [...new Set([...(remote[k] ?? []), ...(local[k] ?? [])])];
   out.notes = { ...(remote.notes ?? {}), ...(local.notes ?? {}) };
+  // 장소: 양쪽 것을 모두(같은 장소를 서로 다르게 정했으면 내 기기 것이 이김)
+  out.places = { ...(remote.places ?? {}), ...(local.places ?? {}) };
+  // 검색어: 내 기기 것을 앞에, 서버 것을 뒤에 이어 붙임(중복 제거는 앱이 읽을 때 함)
+  out.searches = {
+    recent: [...(local.searches?.recent ?? []), ...(remote.searches?.recent ?? [])].slice(0, 10),
+    pinned: [...new Set([...(local.searches?.pinned ?? []), ...(remote.searches?.pinned ?? [])])].slice(0, 10),
+  };
+  out.bothKids = prefs === 'remote' && remote.bothKids !== undefined ? remote.bothKids === true : local.bothKids === true;
   for (const k of PREF_KEYS) {
     const useRemote = prefs === 'remote' && remote[k] !== undefined;
     out[k] = useRemote ? remote[k] : local[k] ?? remote[k] ?? [];

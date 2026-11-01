@@ -6,7 +6,12 @@ import { audienceOf, REASON_LABEL } from './lib/audience';
 import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
 import { fmtMyDate } from './lib/mydates';
-import { fmtFetchedAt, fmtStartTime, daysUntil } from './lib/format';
+import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
+import { classifyBusy, cleanBusy } from './lib/busy';
+import { cleanPlaces, listPlaces, placeKeyOf, placeName, placeState, withPlace } from './lib/places';
+import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
+import { isNewId, updateSeen } from './lib/firstSeen';
+import { dateTrust } from './lib/dateTrust';
 import { toYmd, dowOfYmd, occurrenceDates } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
 import { applyFit, applyTime, daysLabel, editLabels, forcedMatch } from './lib/edits';
@@ -18,6 +23,7 @@ import { useCourses } from './lib/useCourses';
 import { DAY_LABELS, DAY_ORDER, classWeekdays, passesDays } from './lib/weekdays';
 import CourseCard, { KidPills } from './components/CourseCard';
 import GroupCard from './components/GroupCard';
+import PlacesPage from './components/PlacesPage';
 import Settings from './components/Settings';
 import CalendarView from './components/CalendarView';
 import AppSwitcher from './components/AppSwitcher';
@@ -74,6 +80,10 @@ export default function App() {
   const [freeOnly, setFreeOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [favOnly, setFavOnly] = useState(false);
+  const [placeOnly, setPlaceOnly] = useState(false); // ★ 관심 장소만 보기
+  const [searchFocus, setSearchFocus] = useState(false);
+  const [placesOpen, setPlacesOpen] = useState(false); // 업체(장소) 목록 페이지
+  const [placeFocus, setPlaceFocus] = useState(null); // { key, name }: 이 장소의 프로그램만 보기
   const [showHidden, setShowHidden] = useState(false); // 숨긴 프로그램만 보기(되살리기용)
   const [optionsOpen, setOptionsOpen] = useState(false); // PC "옵션" 창
   const [toast, setToast] = useState(null); // 방금 숨긴 것 { kind: 'group'|'rounds', key?, ids?, text } — 되돌리기 안내
@@ -109,6 +119,23 @@ export default function App() {
   const favs = useMemo(() => new Set(settings.favs ?? []), [settings.favs]);
   const hiddenSet = useMemo(() => new Set(settings.hidden ?? []), [settings.hidden]);
   const hiddenRoundSet = useMemo(() => new Set(settings.hiddenRounds ?? []), [settings.hiddenRounds]);
+  const bothKids = settings.bothKids === true; // 아이를 둘 이상 골랐을 때 모두 갈 수 있는 것만
+  const busyList = useMemo(() => cleanBusy(settings.busy), [settings.busy]);
+  const places = useMemo(() => cleanPlaces(settings.places), [settings.places]);
+  const searches = useMemo(() => cleanSearches(settings.searches), [settings.searches]);
+  const favPlaces = useMemo(() => listPlaces(places, 'fav'), [places]);
+
+  // 처음 본 시각(이 기기에만 저장): 새로 올라온 프로그램에 NEW 를 붙이려고
+  const SEEN_KEY = 'seoulkids:seen:v1';
+  const [seen, setSeen] = useState(() => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || 'null'); } catch { return null; } });
+  useEffect(() => {
+    if (loading || meta.isSample || !courses.length) return; // 불러오는 중·샘플·빈 목록일 땐 기록하지 않음(전부 NEW 로 뜨는 걸 막음)
+    const next = updateSeen(seen, courses.map((c) => c.id));
+    if (next !== seen) {
+      setSeen(next);
+      try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* 저장 불가 환경 */ }
+    }
+  }, [courses, loading, meta.isSample]); // eslint-disable-line react-hooks/exhaustive-deps
   const notes = settings.notes ?? {};
   const toggleAreaCollapse = (area, collapse) =>
     setCollapsedAreas((prev) => {
@@ -224,6 +251,10 @@ export default function App() {
         const activeKm = kidMatchesF.filter((k) => activeIds.includes(k.kid.id));
         let audience = audienceOf(c, activeKm);
         if (forcedMatch(activeKm)) audience = { kind: 'kid', note: '내 수정: 해당' }; // 단체·성인 대상·제한없음 자동 숨김도 풀림
+        // "둘 다 가능": 고른 아이 중 한 명이라도 대상이 아니면 숨김("확인 필요"는 남김)
+        if (bothKids && activeKm.length > 1 && audience.kind !== 'no' && activeKm.some((k) => k.match.result === 'nomatch')) {
+          audience = { kind: 'no', reason: 'bothKids' };
+        }
 
         // 요일: 제목 > 수집기가 읽은 요일 > 기간의 시작·끝 요일로 추정
         let daySet;
@@ -249,6 +280,12 @@ export default function App() {
           disp.recurrence = tinfo.weekdays.length === 1 ? `${names}요일` : names;
         }
         if (note?.time) disp = applyTime(disp, note.time); // 내가 고친 시간
+        // 갈 수 없는 시간과 겹치는지 (상시 운영 시설은 "운영 시간"일 뿐이라 따지지 않음)
+        const isStandingRow = editDays ? false : isStanding(c, tinfo);
+        const timeRange = disp.timeKnown && disp.classStart && fmtTime(disp.classStart) !== '00:00'
+          ? { start: fmtTime(disp.classStart), end: fmtTime(disp.classEnd ?? disp.classStart) }
+          : null;
+        const busyState = isStandingRow ? 'ok' : classifyBusy({ busy: busyList, slots: disp.timeSlots ?? null, range: timeRange, daySet });
         if (editDays) disp.recurrence = daysLabel(note.days, note.weeks);
         if (!myDates && c.detailClosed?.length) {
           const upcoming = c.detailClosed.filter((d) => d >= todayYmd);
@@ -273,14 +310,19 @@ export default function App() {
           tinfo,
           daySet,
           online,
-          standing: editDays ? false : isStanding(c, tinfo), // 요일을 직접 고친 건 상시 시설로 보지 않음
+          standing: isStandingRow, // 요일을 직접 고친 건 상시 시설로 보지 않음
+          busy: busyState,
+          trust: dateTrust({ dateSource, tinfo, course: c, standing: isStandingRow }),
+          placeKey: placeKeyOf(c),
+          placeSt: placeState(places, placeKeyOf(c)),
+          isNew: isNewId(seen, c.id, nowMs),
           needDetail: !daySet && !tinfo.dates && !!multiDay,
           groupKey: groupKeyOf(c),
           chip: chipLabel(c, tinfo),
           distance: online ? null : distanceKm(HOME, { lat: c.lat, lng: c.lng }),
         };
       }),
-    [courses, kids, nowMs, activeIds, now, todayYmd, notes],
+    [courses, kids, nowMs, activeIds, now, todayYmd, notes, busyList, places, seen, bothKids],
   );
 
   const isOver = (e) =>
@@ -308,7 +350,14 @@ export default function App() {
     else document.querySelector('.pane-cal')?.scrollTo?.({ top: 0 });
   };
 
-  const hiddenKind = (e) => (hiddenSet.has(e.groupKey) ? 'group' : hiddenRoundSet.has(e.course.id) ? 'round' : null);
+  const hiddenKind = (e) =>
+    hiddenSet.has(e.groupKey) ? 'group'
+      : hiddenRoundSet.has(e.course.id) ? 'round'
+        : e.busy === 'blocked' && !(favs.has(e.groupKey) || favs.has(e.course.id)) ? 'busy'
+          : e.placeSt === 'hide' && !(favs.has(e.groupKey) || favs.has(e.course.id)) ? 'place'
+            : null;
+  // 설정(갈 수 없는 시간·제외 장소)이 숨긴 것은 카드의 "되살리기" 버튼이 아니라 설정에서 풂
+  const autoHidden = (e) => ['busy', 'place'].includes(hiddenKind(e));
 
   // "관심 없어요": 같은 프로그램(모든 회차)을 목록과 달력에서 숨김. 찜해 둔 것이면 찜도 풀림
   const hideItem = (members) => {
@@ -318,6 +367,31 @@ export default function App() {
     setSettings({ ...settings, hidden: [...new Set([...(settings.hidden ?? []), key])], favs: [...nextFavs] });
     setToast({ kind: 'group', key, text: `숨겼어요 · ${members[0].course.title}` });
   };
+  // 장소 이름을 눌러 정하는 관심(★)·제외(✕) 장소. state=null 이면 해제
+  const applyPlace = (key, name, state) => {
+    if (!key) return;
+    const prev = placeState(places, key);
+    setSettings({ ...settings, places: withPlace(places, key, name, state) });
+    if (state === 'hide') setToast({ kind: 'place', key, name, prev, text: `이 장소를 제외했어요 · ${name}` });
+  };
+  const setPlaceFor = (row, state) => applyPlace(row.placeKey, placeName(row.course), state);
+  // 장소 목록에서 이름을 누르면: 그 장소의 프로그램만 목록에 보여줌
+  const pickPlace = (it) => {
+    setPlaceFocus({ key: it.key, name: it.name });
+    setPlacesOpen(false);
+    setTab('all'); setView('list'); setFavOnly(false); setPlaceOnly(false); setShowHidden(false);
+    window.scrollTo?.({ top: 0 });
+  };
+  const newShown = (e) => e.isNew && (e.placeSt === 'fav' || isFavRow(e)); // NEW 는 관심 장소·찜한 프로그램에만 붙임
+
+  // "이 회차만 관심 없어요": 이 회차 하나만 숨기고 같은 프로그램의 다른 회차는 그대로 둠. 찜해 둔 회차면 찜도 풀림
+  const hideRound = (row) => {
+    const id = row.course.id;
+    const nextFavs = (settings.favs ?? []).filter((f) => f !== id);
+    setSettings({ ...settings, hiddenRounds: [...new Set([...(settings.hiddenRounds ?? []), id])], favs: nextFavs });
+    setToast({ kind: 'rounds', ids: [id], text: `이 회차만 숨겼어요 · ${row.chip || row.course.title}` });
+  };
+  const roundsOf = (row) => enriched.filter((e) => e.groupKey === row.groupKey && !isOver(e) && !hiddenRoundSet.has(e.course.id));
   const unhide = (key) => setSettings((s) => ({ ...s, hidden: (s.hidden ?? []).filter((k) => k !== key) }));
   const unhideRounds = (ids) => setSettings((s) => ({ ...s, hiddenRounds: (s.hiddenRounds ?? []).filter((id) => !ids.includes(id)) }));
 
@@ -341,14 +415,20 @@ export default function App() {
   // 카드 맨 아래 버튼들: 보통은 숨기기, "숨긴 것 다시 보기"에서는 되살리기
   const actionsFor = (row, members) => {
     const hk = hiddenKind(row);
+    if (showHidden && (hk === 'busy' || hk === 'place')) return []; // 설정의 "갈 수 없는 시간"·제외 장소로 숨겨진 것
     if (showHidden) {
       return hk === 'group'
         ? [{ label: '다시 보이게 하기', onClick: () => unhide(row.groupKey) }]
         : [{ label: '이 회차만 숨기기 취소', onClick: () => unhideRounds([row.course.id]) }];
     }
     const acts = [];
-    if (members.length > 1) acts.push({ label: '이 회차만 남기기', onClick: () => keepOnly(row) });
-    acts.push({ label: members.length > 1 ? '관심 없어요' : '관심 없어요 (숨기기)', onClick: () => hideItem(members) });
+    if (members.length > 1) {
+      acts.push({ label: '이 회차만 관심 없어요', onClick: () => hideRound(row) });
+      acts.push({ label: '이 회차만 남기기', onClick: () => keepOnly(row) });
+      acts.push({ label: '프로그램 전체 관심 없어요', onClick: () => hideItem(members) });
+    } else {
+      acts.push({ label: '관심 없어요 (숨기기)', onClick: () => hideItem(members) });
+    }
     return acts;
   };
 
@@ -364,9 +444,11 @@ export default function App() {
       if (q && !norm(`${c.title} ${c.place}`).includes(q)) return false;
       const hk = hiddenKind(e);
       if (showHidden) return !!hk; // 숨긴 것만 보여줌(다시 보이게 하려고)
-      if (hk) return false;
+      if (hk && !(placeFocus && hk === 'place')) return false; // 제외 장소를 직접 열어 본 경우는 보여줌
       if (favOnly) return isFavRow(e); // 찜 목록은 구·대상·분야 조건과 상관없이 보여줌
-      if (scope === 'near' && c.area && !settings.areas.includes(c.area)) return false;
+      if (placeOnly && e.placeSt !== 'fav') return false; // 관심 장소만 (구 선택과 상관없이, 대상 조건은 적용)
+      if (placeFocus && e.placeKey !== placeFocus.key) return false; // 장소 목록에서 고른 장소만
+      if (scope === 'near' && !placeOnly && !placeFocus && c.area && !settings.areas.includes(c.area)) return false;
       if (freeOnly && !(/무료/.test(c.pay) && !/유료/.test(c.pay))) return false;
       if (!showAllTargets) {
         if (e.audience.kind === 'no') return false;
@@ -387,7 +469,7 @@ export default function App() {
   // 묶음 기준 개수 (상시 운영·요일 확인 필요는 따로 세므로 뺌)
   const countItems = (rows) => new Set(rows.filter((e) => !e.standing && !isDayUnknown(e)).map((e) => e.groupKey)).size;
 
-  const dep = [scope, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, hiddenRoundSet, showHidden, activeIds, effDays, todayYmd];
+  const dep = [scope, placeOnly, placeFocus, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, hiddenRoundSet, showHidden, activeIds, effDays, todayYmd];
   /* eslint-disable */
   const base = useMemo(() => pre(false), [enriched, cats, ...dep]);
   const baseNoCats = useMemo(() => pre(true), [enriched, ...dep]);
@@ -432,6 +514,25 @@ export default function App() {
   const unknownItems = useMemo(() => items.filter((it) => !itemStanding(it) && itemDayUnknown(it)), [items, effDays]);
   const standingItems = useMemo(() => items.filter(itemStanding), [items]);
 
+  // 접수예정 탭: 접수가 열리는 날짜별로 묶어서, 가장 빨리 열리는 것부터 (인기 프로그램은 미리 알람을 맞춰 두려고)
+  const upcomingGroups = useMemo(() => {
+    if (tab !== 'upcoming') return null;
+    const startOf = (it) => Math.min(...it.members.filter((m) => m.status === 'upcoming').map((m) => ms(m.course.applyStart)));
+    const tomorrow = toYmd(new Date(nowMs + 86400000));
+    const map = new Map();
+    [...mainItems].sort((a, b) => startOf(a) - startOf(b)).forEach((it) => {
+      const t = startOf(it);
+      const ymd = Number.isFinite(t) ? toYmd(new Date(t)) : '';
+      if (!map.has(ymd)) map.set(ymd, []);
+      map.get(ymd).push(it);
+    });
+    return [...map.entries()].map(([ymd, its]) => ({
+      ymd,
+      items: its,
+      label: !ymd ? '접수 일정 미정' : `${ymd === todayYmd ? '오늘 · ' : ymd === tomorrow ? '내일 · ' : ''}${fmtDate(`${ymd}T12:00:00+09:00`)} 접수 시작`,
+    }));
+  }, [mainItems, tab, nowMs, todayYmd]);
+
   // "가까운 구 순": 구별로 묶고, 집에서 가까운 구부터
   const areaBuckets = useMemo(() => {
     if (sort !== 'area') return null;
@@ -462,6 +563,17 @@ export default function App() {
     return m;
   }, [enriched]);
 
+  // 장소 페이지에 보여줄 회차: 지금 목록 조건(구·대상·접수상태)과 같되, 장소·요일 같은 세부 조건은 뺌
+  const placeRows = useMemo(
+    () => enriched.filter((e) => {
+      if (isOver(e) || hiddenSet.has(e.groupKey) || hiddenRoundSet.has(e.course.id) || e.busy === 'blocked') return false;
+      if (!showAllTargets && (e.audience.kind === 'no' || (e.audience.kind === 'open' && !includeOpen))) return false;
+      if (!(e.status === 'open' || e.status === 'upcoming' || showClosed)) return false;
+      return !(scope === 'near' && e.course.area && !settings.areas.includes(e.course.area));
+    }), // eslint-disable-line react-hooks/exhaustive-deps
+    [enriched, hiddenSet, hiddenRoundSet, showAllTargets, includeOpen, showClosed, scope, settings.areas, todayYmd],
+  );
+
   const renderCard = (e) => (
     <CourseCard
       key={e.course.id}
@@ -485,6 +597,10 @@ export default function App() {
       actions={actionsFor(e, [e])}
       note={e.note}
       onNote={() => setNoteFor(e.course.id)}
+      placeSt={e.placeSt}
+      onPlace={(st) => setPlaceFor(e, st)}
+      isNew={newShown(e)}
+      trust={e.trust}
     />
   );
 
@@ -499,6 +615,8 @@ export default function App() {
         getActions={(sel) => actionsFor(sel, it.members)}
         onNote={setNoteFor}
         onGoCalendar={focusCalendar}
+        onPlace={setPlaceFor}
+        newOf={newShown}
       />
     ) : (
       renderCard(it.members[0])
@@ -509,7 +627,7 @@ export default function App() {
     const time = fmtStartTime(c);
     return (
       <div key={c.id} className="cal-row-wrap">
-        <a className={`cal-row ${e.status}`} href={c.url} target="_blank" rel="noopener noreferrer">
+        <a className={`cal-row ${e.status}${e.trust?.level === 'guess' ? ' guess' : ''}`} href={c.url} target="_blank" rel="noopener noreferrer">
           <span className={`badge ${e.status === 'open' ? 'open' : e.status === 'upcoming' ? 'upcoming' : 'closed'}`}>
             {STATUS_LABEL[e.status]}
           </span>
@@ -536,8 +654,9 @@ export default function App() {
           type="button"
           className="cal-hide"
           aria-label={showHidden ? '다시 보이게 하기' : '관심 없어요 (숨기기)'}
-          title={showHidden ? '다시 보이게 하기' : '관심 없어요 · 같은 프로그램의 모든 회차를 숨겨요'}
-          onClick={() => (showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : hideItem([e]))}
+          title={showHidden ? '다시 보이게 하기' : '관심 없어요 · 이 회차만 숨겨요 (프로그램 전체는 카드 아래 버튼)'}
+          disabled={showHidden && autoHidden(e)}
+          onClick={() => (showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : roundsOf(e).length > 1 ? hideRound(e) : hideItem([e]))}
         >
           {showHidden ? '↺' : '✕'}
         </button>
@@ -548,15 +667,37 @@ export default function App() {
   const hasErrors = meta.errors?.length > 0;
 
   // ---- 필터 부품: 폰과 PC가 같은 부품을 다른 배치로 씀 ----
+  // 최근·고정 검색어: 엔터를 치거나 검색창을 벗어날 때 저장(두 글자 이상). 글자를 칠 때마다 저장하지는 않음
+  const saveSearches = (next) => {
+    if (JSON.stringify(next) !== JSON.stringify(searches)) setSettings({ ...settings, searches: next });
+  };
+  const commitSearch = (t) => saveSearches(addRecent(searches, t));
+  const searchTerms = [...searches.pinned.map((t) => ({ t, pin: true })), ...searches.recent.map((t) => ({ t, pin: false }))];
   const searchEl = (
-    <input
-      type="search"
-      className="search"
-      placeholder="프로그램명·장소 검색"
-      aria-label="프로그램명·장소 검색"
-      value={query}
-      onChange={(e) => setQuery(e.target.value)}
-    />
+    <div className="searchbox">
+      <input
+        type="search"
+        className="search"
+        placeholder="프로그램명·장소 검색"
+        aria-label="프로그램명·장소 검색"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onFocus={() => setSearchFocus(true)}
+        onBlur={() => { commitSearch(query); setTimeout(() => setSearchFocus(false), 200); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { commitSearch(query); e.currentTarget.blur(); } }}
+      />
+      {searchFocus && searchTerms.length > 0 && (
+        <div className="search-drop" role="listbox" aria-label="최근·고정 검색어" onMouseDown={(e) => e.preventDefault()}>
+          {searchTerms.map(({ t, pin }) => (
+            <span key={`${pin ? 'p' : 'r'}:${t}`} className={`sterm${pin ? ' pin' : ''}`}>
+              <button type="button" className="sterm-t" onClick={() => { setQuery(t); saveSearches(addRecent(searches, t)); setSearchFocus(false); }}>{t}</button>
+              <button type="button" className="sterm-b" aria-label={pin ? `${t} 고정 해제` : `${t} 고정`} title={pin ? '고정 해제' : '고정'} onClick={() => saveSearches(togglePin(searches, t))}>{pin ? '📌' : '📍'}</button>
+              <button type="button" className="sterm-b" aria-label={`${t} 지우기`} onClick={() => saveSearches(removeTerm(searches, t))}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
   const favBtn = (
     <button
@@ -568,6 +709,17 @@ export default function App() {
       {favOnly ? '♥' : '♡'} 찜 {favCount}
     </button>
   );
+  const placeBtn = favPlaces.length > 0 || placeOnly ? (
+    <button
+      type="button"
+      className={`fav-toggle place${placeOnly ? ' on' : ''}`}
+      aria-pressed={placeOnly}
+      title="관심 장소(★)의 프로그램만 보기"
+      onClick={() => setPlaceOnly((v) => !v)}
+    >
+      {placeOnly ? '★' : '☆'} 장소 {favPlaces.length}
+    </button>
+  ) : null;
   const tabsEl = (
     <div className="tabs" role="tablist">
       {TABS.map((x) => (
@@ -593,6 +745,11 @@ export default function App() {
       {cats.length > 0 && <button type="button" className="link-btn" onClick={() => setCats([])}>전체 분야</button>}
     </div>
   );
+  const bothEl = activeIds.length > 1 ? (
+    <label className="both-kids">
+      <input type="checkbox" checked={bothKids} onChange={() => setSettings({ ...settings, bothKids: !bothKids })} /> 둘 다 갈 수 있는 것만
+    </label>
+  ) : null;
   const kidsEl = (
     <div className="kids" role="group" aria-label="아이">
       <span className="days-label">아이</span>
@@ -610,7 +767,11 @@ export default function App() {
           </button>
         );
       })}
+      {bothEl}
     </div>
+  );
+  const placesBtn = (
+    <button type="button" className={`fbtn${placeFocus ? ' on' : ''}`} onClick={() => setPlacesOpen(true)}>📍 장소 목록</button>
   );
   const scopeSeg = (
     <div className="seg" role="group" aria-label="지역">
@@ -693,7 +854,7 @@ export default function App() {
     <>
       <div className="fbar">
         {fbtn('분야', cats.length || null, cats.length > 0, () => setSheet('cats'))}
-        {fbtn(activeIds.length === kids.length ? '아이' : `아이 ${activeIds.length}/${kids.length}`, null, activeIds.length !== kids.length, () => setSheet('kids'))}
+        {fbtn(activeIds.length === kids.length ? '아이' : `아이 ${activeIds.length}/${kids.length}`, null, activeIds.length !== kids.length || (bothKids && activeIds.length > 1), () => setSheet('kids'))}
         {fbtn(scope === 'near' ? '구' : '서울', scope === 'near' ? settings.areas.length : null, scope === 'all', () => setSheet('area'))}
         {fbtn('옵션', phoneOptionCount || null, phoneOptionCount > 0, () => setSheet('options'))}
       </div>
@@ -744,7 +905,8 @@ export default function App() {
               </button>
             ))}
           </div>
-          <p className="hint">고른 아이에게 맞는 프로그램만 보여요. 아이 정보는 설정에서 바꿔요.</p>
+          {bothEl}
+          <p className="hint">고른 아이에게 맞는 프로그램만 보여요. 아이를 둘 이상 고르면 &quot;둘 다 갈 수 있는 것만&quot;을 켤 수 있어요. 아이 정보는 설정에서 바꿔요.</p>
         </Sheet>
       )}
       {sheet === 'area' && (
@@ -821,16 +983,23 @@ export default function App() {
 
       {isDesktop ? (
         <nav className="filters toolbar" aria-label="필터">
-          <div className="tb-line">{searchEl}{favBtn}{tabsEl}{sortEl}</div>
+          <div className="tb-line">{searchEl}{favBtn}{placeBtn}{tabsEl}{sortEl}</div>
           <div className="tb-line tb-wrap">{catsEl}{kidsEl}</div>
-          <div className="tb-line">{scopeSeg}{hintEl}{daysEl}{optionsEl}</div>
+          <div className="tb-line">{scopeSeg}{hintEl}{daysEl}{placesBtn}{optionsEl}</div>
         </nav>
       ) : (
         <nav className="filters" aria-label="필터">
-          <div className="searchrow">{searchEl}{favBtn}</div>
+          <div className="searchrow">{searchEl}{favBtn}{placeBtn}</div>
           {tabsEl}
           {phoneBar}
         </nav>
+      )}
+
+      {placeFocus && (
+        <div className="focus-bar" role="status">
+          <span>📍 <strong>{placeFocus.name}</strong>만 보는 중</span>
+          <button type="button" className="link-btn" onClick={() => setPlaceFocus(null)}>✕ 해제</button>
+        </div>
       )}
 
       <main className="panes">
@@ -865,7 +1034,14 @@ export default function App() {
                   {unknownItems.length > 0 ? '고른 요일이 확인된 프로그램은 없어요. 요일을 알 수 없는 프로그램은 아래에 접혀 있어요.' : '날짜가 정해진 프로그램은 없고, 상시 운영만 있어요.'}
                 </p>
               )}
-              {areaBuckets
+              {upcomingGroups
+                ? upcomingGroups.map((g) => (
+                    <section key={g.ymd || 'none'} className="up-group">
+                      <h3 className="up-head">{g.label} <small>{g.items.length}</small></h3>
+                      {g.items.map(renderItem)}
+                    </section>
+                  ))
+                : areaBuckets
                 ? areaBuckets.map((b) => (
                     <AreaGroup key={b.area || 'none'} area={b.area} count={b.items.length} collapsed={collapsedAreas.has(b.area)} onToggle={toggleAreaCollapse}>
                       {b.items.map(renderItem)}
@@ -926,13 +1102,22 @@ export default function App() {
         <div className="viewbar">
           <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')}>달력</button>
           <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>목록</button>
+          <button className={placesOpen || placeFocus ? 'on' : ''} onClick={() => setPlacesOpen(true)}>장소</button>
         </div>
       )}
 
       {toast && (
         <div className="toast" role="status">
           <span className="toast-text">{toast.text}</span>
-          <button type="button" onClick={() => { if (toast.kind === 'group') unhide(toast.key); else unhideRounds(toast.ids); setToast(null); }}>되돌리기</button>
+          <button
+            type="button"
+            onClick={() => {
+              if (toast.kind === 'group') unhide(toast.key);
+              else if (toast.kind === 'place') setSettings((cur) => ({ ...cur, places: withPlace(cleanPlaces(cur.places), toast.key, toast.name, toast.prev) }));
+              else unhideRounds(toast.ids);
+              setToast(null);
+            }}
+          >되돌리기</button>
         </div>
       )}
 
@@ -940,6 +1125,17 @@ export default function App() {
 
       {noteRow && (
         <NoteSheet key={noteRow.course.id} orig={noteRow.orig} note={noteRow.note} kids={kids} autoKidMatches={noteRow.autoKidMatches} onSave={(n) => saveNote(noteRow.course.id, n)} onClose={() => setNoteFor(null)} />
+      )}
+
+      {placesOpen && (
+        <PlacesPage
+          rows={placeRows}
+          places={places}
+          scopeLabel={scope === 'near' ? `선택한 구(${settings.areas.length}곳)` : '서울 전체'}
+          onPick={pickPlace}
+          onSetPlace={(it, st) => applyPlace(it.key, it.name, st)}
+          onClose={() => setPlacesOpen(false)}
+        />
       )}
 
       {settingsOpen && <Settings settings={settings} setSettings={setSettings} now={now} sync={sync} onClose={() => setSettingsOpen(false)} />}

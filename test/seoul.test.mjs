@@ -60,3 +60,19 @@ assert.equal(isStale({ classEnd: '2026-10-24T00:00:00+09:00', applyEnd: '2026-10
 console.log('seoul.test.mjs OK');
 console.log(by(cul, '장승').snippet.slice(0, 120));
 console.log(bk.snippet.slice(0, 160));
+
+// 시간대가 나뉜 프로그램: V_MIN~V_MAX(10:00~14:30) 한 덩어리 대신 설명의 시간대를 따로 저장
+{
+  const row = {
+    SVCID: 'T1', SVCNM: '토요 가족 체험 (11월)', MAXCLASSNM: '교육강좌', MINCLASSNM: '체험', SVCSTATNM: '접수중',
+    PLACENM: '어딘가', AREANM: '강남구', USETGTINFO: '유아(유아 및 초등 저학년 동반가족)',
+    SVCOPNBGNDT: '2026-11-07 00:00:00.0', SVCOPNENDDT: '2026-11-28 00:00:00.0',
+    RCPTBGNDT: '2026-10-20 10:00:00.0', RCPTENDDT: '2026-11-05 17:00:00.0', V_MIN: '10:00', V_MAX: '14:30',
+    DTLCONT: '<p>운영요일 : 매주 토요일</p><p>1부 10:00~11:30 / 2부 13:00~14:30</p>',
+  };
+  const c = normalizeRow(row, 'education', Date.parse('2026-11-01T00:00:00+09:00'));
+  assert.deepEqual(c.timeSlots.map((s) => `${s.start}-${s.end}`), ['10:00-11:30', '13:00-14:30']);
+  const one = normalizeRow({ ...row, SVCID: 'T2', DTLCONT: '<p>매주 토요일 10:00~14:30</p>' }, 'education', Date.parse('2026-11-01T00:00:00+09:00'));
+  assert.equal(one.timeSlots, null); // 시간대가 하나뿐이면 따로 저장하지 않음
+}
+console.log('seoul time-slot test OK');

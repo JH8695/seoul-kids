@@ -27,3 +27,24 @@ assert.deepEqual(back.settings.favs, settings.favs);
 assert.ok(parseShareHash('#import=@@@').error);
 assert.ok(parseShareHash('#other').error);
 console.log('backup.test.mjs OK');
+
+// 갈 수 없는 시간 · 관심/제외 장소 · 검색어도 내보내기/가져오기에 포함
+{
+  const settings = {
+    kids: [{ id: 'k1', label: '큰아이', birthYear: 2017 }],
+    busy: [{ id: 'a', days: [6], start: '10:00', end: '11:50' }],
+    places: { '강남구|과학관': { s: 'hide', n: '과학관' } },
+    searches: { recent: ['방배'], pinned: ['유아숲'] },
+  };
+  const r = parseImport(buildExport(settings));
+  assert.deepEqual(r.settings.busy, settings.busy);
+  assert.deepEqual(r.settings.places, settings.places);
+  assert.deepEqual(r.settings.searches, settings.searches);
+  // 이상한 값은 걸러내고 앱이 깨지지 않게
+  const bad = parseImport(JSON.stringify({ app: 'seoul-kids', v: 1, settings: { busy: [{ days: [], start: 'x', end: 'y' }], places: { a: { s: 'zzz' } }, searches: { recent: [1, 'ok'] } } }));
+  assert.deepEqual(bad.settings.busy, []);
+  assert.deepEqual(bad.settings.places, {});
+  assert.deepEqual(bad.settings.searches, { recent: ['1', 'ok'], pinned: [] });
+  assert.ok(parseImport(JSON.stringify({ app: 'seoul-kids', v: 1, settings: { busy: 'x' } })).error);
+}
+console.log('backup extra OK');

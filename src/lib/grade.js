@@ -55,6 +55,8 @@ const OTHER_AGE_WORDS = /영유아|영아|신생아|유아|미취학|중학생|�
 // 취학 전(유치원) 아이에게는 유아·미취학이 "다른 연령대"가 아니라 우리 아이 대상이에요
 const OTHER_AGE_WORDS_PRESCHOOL = /영아|신생아|중학생|중등|고등학생|청소년|10대/;
 const PRESCHOOL_WORDS = /유아|미취학|유치원/;
+// "유아 동반 불가"처럼 유아를 오히려 빼는 말
+const PRESCHOOL_EXCLUDED = /(?:유아|미취학|유치원)[^,.)]{0,6}(?:불가|제외|금지|불참|못)/;
 const SCHOOL_ONLY_WORDS = /초등|중학|고등/;
 // 아이가 분명히 대상에 들어가는 말
 const KID_WORDS = /초등(?:학생|생)?|초등학교|어린이|아동|온가족|가족/;
@@ -73,6 +75,7 @@ export function matchTarget(text, grade, age, birthYear = null) {
   t = t.replace(/(제한없음|누구나|전연령|연령무관)\([^)]*(?:보호자|동반|예약|최소|인원)[^)]*\)/g, '$1');
   let pos = false;
   let neg = false;
+  let negOther = false; // 학년(초N·저학년) 이외의 이유(나이·개월·출생연도·성인 등)로 해당 안 됨
   let check = false;
 
   // 0) 출생연도: 2018~19년생, 2017년생~2014년생, 2017년생
@@ -80,7 +83,7 @@ export function matchTarget(text, grade, age, birthYear = null) {
     if (birthYear == null) { check = true; return ''; }
     const lo = +a;
     const hi = b ? (b.length === 2 ? +(a.slice(0, 2) + b) : +b) : lo;
-    birthYear >= Math.min(lo, hi) && birthYear <= Math.max(lo, hi) ? (pos = true) : (neg = true);
+    birthYear >= Math.min(lo, hi) && birthYear <= Math.max(lo, hi) ? (pos = true) : (neg = negOther = true);
     return '';
   });
 
@@ -98,7 +101,7 @@ export function matchTarget(text, grade, age, birthYear = null) {
     else if (dir === '이하' || dir === '이내') { min = 0; max = +a; }
     else { min = +a; max = +a; }
     if (kidLo >= min && kidHi <= max) pos = true;
-    else if (kidHi < min || kidLo > max) neg = true;
+    else if (kidHi < min || kidLo > max) neg = negOther = true;
     else check = true;
     return '';
   });
@@ -139,11 +142,11 @@ export function matchTarget(text, grade, age, birthYear = null) {
         const inA = age - 2 >= min && age - 2 <= max;
         const inB = age - 1 >= min && age - 1 <= max;
         if (inA && inB) pos = true;
-        else if (!inA && !inB) neg = true;
+        else if (!inA && !inB) neg = negOther = true;
         else check = true;
         return '';
       }
-      age >= min && age <= max ? (pos = true) : (neg = true);
+      age >= min && age <= max ? (pos = true) : (neg = negOther = true);
       return '';
     },
   );
@@ -158,10 +161,10 @@ export function matchTarget(text, grade, age, birthYear = null) {
   // 4) 다른 연령대 단어 (성인·시니어·중학생 등)
   const preschool = grade < 1; // 취학 전(유치원)
   const otherAge = ADULT_WORDS.test(t) || (preschool ? OTHER_AGE_WORDS_PRESCHOOL : OTHER_AGE_WORDS).test(t);
-  if (otherAge) neg = true;
+  if (otherAge) neg = negOther = true;
   // 영아·신생아만 대상이고 유아·어린이·초등 같은 말이 없으면(예: "영아 동반 가족") 우리 아이는 해당 없음
   const infantOnly = /영아|신생아|갓난|돌\s*전/.test(t) && !/유아|어린이|초등|(?<!영)아동|\d+\s*세/.test(t); // "영아동반"의 "아동"은 제외
-  if (infantOnly) neg = true;
+  if (infantOnly) neg = negOther = true;
   if (preschool && /영유아/.test(t) && !explicit) { check = true; tags.push('영유아 · 나이 확인'); }
 
   // 5) 일반 단어는 명시 조건(학년·나이·출생연도)이 없을 때만 "해당"으로 인정
@@ -186,6 +189,18 @@ export function matchTarget(text, grade, age, birthYear = null) {
   if (/\d+팀/.test(t) && !(pos || neg || check)) {
     check = true;
     tags.push('팀 신청 · 나이 직접 확인');
+  }
+
+  // 5-2) 유아가 대상으로 따로 적힌 복합 문구 구제
+  //      예: "유아(유아 및 초등 저학년 동반가족)" — "초등 저학년"은 유치원 아이에게 해당 없지만,
+  //      "유아"가 따로 적혀 있으므로 해당. (학년 조건만 해당 안 됨의 이유일 때만. 나이·개월 조건이 막으면 그대로 둠)
+  if (preschool && neg && !pos && !check && !negOther) {
+    const noInfant = t.replace(/영유아/g, '');
+    if (PRESCHOOL_WORDS.test(noInfant) && !PRESCHOOL_EXCLUDED.test(noInfant)) {
+      pos = true;
+      neg = false;
+      tags.push('유아 항목 해당');
+    }
   }
 
   // 6) 보호자 전용 여부: 보호자 단어가 있는데 "함께/동반/가족" 같은 단서가 없으면

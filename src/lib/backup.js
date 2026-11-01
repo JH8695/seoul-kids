@@ -1,7 +1,10 @@
 // 다른 기기로 옮기기: 설정·찜·숨김·메모를 글 하나로 내보내고 가져옵니다.
 import { cleanNote } from './edits.js';
+import { cleanBusy } from './busy.js';
+import { cleanPlaces } from './places.js';
+import { cleanSearches } from './searches.js';
 
-export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
 
 export function buildExport(settings) {
   const out = {};
@@ -34,6 +37,13 @@ export function parseImport(text) {
     if (!Array.isArray(s.days) || !s.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return { error: '요일 항목이 올바르지 않아요.' };
     out.days = s.days;
   }
+  if (s.busy !== undefined) {
+    if (!Array.isArray(s.busy)) return { error: '갈 수 없는 시간 항목이 올바르지 않아요.' };
+    out.busy = cleanBusy(s.busy);
+  }
+  if (s.bothKids !== undefined) out.bothKids = s.bothKids === true;
+  if (s.places !== undefined) out.places = cleanPlaces(s.places);
+  if (s.searches !== undefined) out.searches = cleanSearches(s.searches);
   if (s.notes !== undefined) {
     if (typeof s.notes !== 'object' || s.notes === null || Array.isArray(s.notes)) return { error: '메모 항목이 올바르지 않아요.' };
     const notes = {};

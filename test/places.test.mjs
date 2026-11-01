@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import { placeKeyOf, placeName, cleanPlaces, withPlace, placeState, listPlaces } from '../src/lib/places.js';
+import { cleanSearches, addRecent, removeTerm, togglePin } from '../src/lib/searches.js';
+import { updateSeen, isNewId, NEW_DAYS } from '../src/lib/firstSeen.js';
+
+// 장소 열쇠: 띄어쓰기·대소문자 차이는 같은 장소
+assert.equal(placeKeyOf({ area: '서초구', place: '서울 새활용플라자' }), placeKeyOf({ area: '서초구', place: '서울새활용플라자 ' }));
+assert.notEqual(placeKeyOf({ area: '서초구', place: 'A도서관' }), placeKeyOf({ area: '강남구', place: 'A도서관' }));
+assert.equal(placeKeyOf({ area: '서초구', place: '  ' }), null);
+// 시설 안의 세부 위치는 같은 장소로 묶음
+assert.equal(placeKeyOf({ area: '서초구', place: '서울새활용플라자 · 3층 강당' }), placeKeyOf({ area: '서초구', place: '서울 새활용플라자 > 꿈꾸는공장' }));
+assert.equal(placeName({ place: '서울새활용플라자 · 3층 강당' }), '서울새활용플라자');
+
+// 관심 ↔ 제외는 한 장소에 하나만
+let p = withPlace({}, 'k1', '장소1', 'fav');
+assert.equal(placeState(p, 'k1'), 'fav');
+p = withPlace(p, 'k1', '장소1', 'hide');
+assert.equal(placeState(p, 'k1'), 'hide');
+assert.deepEqual(listPlaces(p, 'fav'), []);
+assert.deepEqual(listPlaces(p, 'hide'), [{ key: 'k1', name: '장소1' }]);
+p = withPlace(p, 'k1', '장소1', null);
+assert.deepEqual(p, {});
+assert.deepEqual(withPlace({ a: { s: 'fav', n: 'x' } }, null, 'n', 'hide'), { a: { s: 'fav', n: 'x' } }); // 열쇠가 없으면 변화 없음
+// 이상한 값은 걸러냄
+assert.deepEqual(cleanPlaces({ ok: { s: 'fav', n: '가' }, bad: { s: 'x' }, bad2: 3 }), { ok: { s: 'fav', n: '가' } });
+assert.deepEqual(cleanPlaces([1, 2]), {});
+
+// 검색어: 최근 10개, 같은 말은 맨 앞, 한 글자는 기록 안 함
+let s = cleanSearches(null);
+s = addRecent(s, '방배');
+s = addRecent(s, '유아숲');
+s = addRecent(s, '방배 ');
+assert.deepEqual(s.recent, ['방배', '유아숲']);
+assert.deepEqual(addRecent(s, '가').recent, ['방배', '유아숲']);
+for (let i = 0; i < 12; i++) s = addRecent(s, `검색${i}`);
+assert.equal(s.recent.length, 10);
+assert.equal(s.recent[0], '검색11');
+// 고정: 최근 목록에서 옮겨 가고, 밀려나지 않음. 고정한 말은 최근에 다시 쌓이지 않음
+s = togglePin(s, '검색11');
+assert.deepEqual(s.pinned, ['검색11']);
+assert.ok(!s.recent.includes('검색11'));
+for (let i = 20; i < 40; i++) s = addRecent(s, `검색${i}`);
+assert.deepEqual(s.pinned, ['검색11']);
+assert.deepEqual(addRecent(s, '검색11').recent, s.recent);
+s = togglePin(s, '검색11'); // 해제하면 최근 맨 앞으로
+assert.equal(s.recent[0], '검색11');
+assert.deepEqual(s.pinned, []);
+s = removeTerm(s, '검색11');
+assert.ok(!s.recent.includes('검색11'));
+
+// NEW: 처음 열 때 있던 것은 옛것, 이후 새로 올라온 것만 NEW
+const t0 = Date.parse('2026-11-01T09:00:00+09:00');
+let seen = updateSeen(null, ['a', 'b'], t0);
+assert.equal(isNewId(seen, 'a', t0), false);
+const t1 = t0 + 3 * 3600000;
+seen = updateSeen(seen, ['a', 'b', 'c'], t1);
+assert.equal(isNewId(seen, 'c', t1), true);
+assert.equal(isNewId(seen, 'a', t1), false);
+assert.equal(isNewId(seen, 'c', t1 + (NEW_DAYS + 1) * 86400000), false); // 3일이 지나면 NEW 가 아님
+assert.equal(updateSeen(seen, ['a', 'b', 'c'], t1 + 1000), seen); // 변화 없으면 같은 객체(불필요한 저장 방지)
+// 목록이 비어 읽힌 날(수집 실패)에는 기록을 지우지 않음
+assert.equal(updateSeen(seen, [], t1 + 99 * 86400000), seen);
+console.log('places.test.mjs OK');

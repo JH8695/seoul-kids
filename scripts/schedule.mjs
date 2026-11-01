@@ -258,3 +258,101 @@ export function parseDetailWeekdays(detail) {
   if (wk) return wk[1] === '주말' ? [0, 6] : [1, 2, 3, 4, 5];
   return null;
 }
+
+// ───────── 시간대 읽기 ─────────
+// 서울시 데이터의 V_MIN~V_MAX 는 "가장 이른 시작 ~ 가장 늦은 끝" 한 쌍뿐이라서,
+// "10:00~11:30 / 13:00~14:30" 처럼 시간대가 나뉘어 있으면 10:00~14:30 으로 합쳐져 버려요.
+// 설명에서 시간대를 따로 읽어 두면 중간의 빈 시간을 살릴 수 있어요.
+const hhmm = (h, m) => `${pad(h)}:${pad(m)}`;
+const toMin = (s) => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+
+// 시각 한 개: "오후 2시 30분", "14시30분", "14:00", "2시", "10시 반"
+const TIME = String.raw`(오전|오후)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시\s*(?:(\d{1,2})\s*분?|(반))?)`;
+const RANGE = new RegExp(String.raw`${TIME}\s*(?:~|∼|～|–|-|에서)\s*${TIME}`, 'g');
+
+function to24(mer, h, noMerFallback) {
+  if (mer === '오후') return h < 12 ? h + 12 : h;
+  if (mer === '오전') return h === 12 ? 0 : h;
+  return noMerFallback(h);
+}
+
+/**
+ * 설명에서 시간대를 모두 읽음.
+ * @returns {{ slots: {start:string,end:string,days:number[]|null}[], sources: string[] }}
+ *   - 접수·신청·문의 같은 말 근처의 시각은 제외
+ *   - 각 시간대 바로 앞에 요일(토요일, (토), 주말, 평일)이 적혀 있으면 days 로 남김
+ */
+export function parseTimeSlots(detail) {
+  const d = String(detail ?? '').replace(/\s+/g, ' ');
+  const slots = [];
+  const sources = [];
+  RANGE.lastIndex = 0;
+  let m;
+  while ((m = RANGE.exec(d))) {
+    const [, mer1, h1, mi1, mi1b, half1, mer2, h2, mi2, mi2b, half2] = m;
+    // 접수·신청 같은 말이 같은 항목(\"/ | ; ※ ▶\" 로 끊은 앞부분) 안에 있으면 수업 시각이 아님
+    const before = d.slice(Math.max(0, m.index - 24), m.index).split(/[\/|;※▶■○ㅇ•]/).pop();
+    if (SKIP_CONTEXT.test(before)) continue;
+    // 날짜 범위의 \"10-11\" 같은 것을 시각으로 오인하지 않게: 콜론 또는 \"시\"가 하나도 없으면 건너뜀
+    if (!/[:시]/.test(m[0])) continue;
+    const min1 = mi1 != null ? +mi1 : mi1b != null ? +mi1b : half1 ? 30 : 0;
+    const min2 = mi2 != null ? +mi2 : mi2b != null ? +mi2b : half2 ? 30 : 0;
+    let H1 = to24(mer1, +h1, (h) => (h >= 1 && h <= 7 ? h + 12 : h)); // 병기 없는 1~7시는 오후로 봄
+    let H2 = to24(mer2 ?? mer1, +h2, (h) => h);
+    if (!mer2 && !mer1 && H2 <= H1 && H2 < 12) H2 += 12;
+    if (!mer2 && mer1 === '오전' && H2 < H1) H2 += 12;
+    if (H1 > 23 || H2 > 24 || min1 > 59 || min2 > 59) continue;
+    const start = hhmm(H1, min1);
+    const end = H2 === 24 ? '23:59' : hhmm(H2, min2);
+    if (toMin(end) <= toMin(start)) continue;
+    if (toMin(start) < 6 * 60) continue; // 새벽 시간대는 시각이 아닌 것으로 봄
+
+    // 바로 앞의 요일 표시 (\"10월\"의 월, \"17일\"의 일은 요일이 아니므로 숫자 바로 뒤의 글자는 제외)
+    const near = d.slice(Math.max(0, m.index - 14), m.index);
+    let days = null;
+    if (/주말/.test(near)) days = [0, 6];
+    else if (/평일/.test(near)) days = [1, 2, 3, 4, 5];
+    else {
+      const toks = [...near.matchAll(/(?<![\d가-힣])([일월화수목금토])(?:요일|(?![가-힣]))/g)];
+      const lastTok = toks[toks.length - 1];
+      // 요일 표시가 시간대 바로 앞에 붙어 있을 때만 (사이에 다른 글이 끼면 다른 항목의 요일)
+      const gapToSlot = lastTok ? near.slice(lastTok.index + lastTok[0].length) : '';
+      if (toks.length && /^[\s:：(),\[\]|·-]{0,6}$/.test(gapToSlot)) {
+        // 맨 뒤 요일부터 거슬러 올라가며, 쉼표·가운뎃점 등으로만 이어진 묶음만 취함
+        const grp = [toks[toks.length - 1]];
+        for (let i = toks.length - 2; i >= 0; i--) {
+          const gap = near.slice(toks[i].index + toks[i][0].length, grp[0].index);
+          if (/^[\s,·/、및와과~-]*$/.test(gap)) grp.unshift(toks[i]); else break;
+        }
+        days = [...new Set(grp.map((x) => DAYCH.indexOf(x[1])))].sort((x, y) => x - y);
+      }
+    }
+    slots.push({ start, end, days });
+    if (sources.length < 3) sources.push(snip(d, m.index, m[0].length));
+  }
+  // 같은 시간대(같은 요일 표시)는 한 번만
+  const seen = new Set();
+  const uniq = slots.filter((s) => {
+    const k = `${s.start}-${s.end}-${(s.days ?? []).join('')}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return { slots: uniq.sort((a, b) => toMin(a.start) - toMin(b.start) || toMin(a.end) - toMin(b.end)), sources };
+}
+
+/**
+ * 읽은 시간대를 API 의 시간 범위(vMin~vMax)와 맞춰 보고 쓸 만한 것만 남김.
+ * - 서로 다른 시간대가 둘 이상이고, 모두 API 범위 안에 있을 때만 사용 (시설 이용시간 같은 걸 시각으로 오인하는 걸 막음)
+ */
+export function pickTimeSlots(detail, vMin, vMax) {
+  if (!vMin || !vMax || vMin === '00:00') return null;
+  const { slots, sources } = parseTimeSlots(detail);
+  const lo = toMin(vMin);
+  const hi = toMin(vMax);
+  const inside = slots.filter((s) => toMin(s.start) >= lo && toMin(s.end) <= hi);
+  if (inside.length < 2 || inside.length !== slots.length) return null;
+  const distinct = new Set(inside.map((s) => `${s.start}-${s.end}`));
+  if (distinct.size < 2) return null;
+  return { slots: inside, sources };
+}

@@ -1,4 +1,4 @@
-import { TZ } from './grade';
+import { TZ } from './grade.js';
 
 const dateFmt = new Intl.DateTimeFormat('ko-KR', {
   timeZone: TZ, month: 'numeric', day: 'numeric', weekday: 'short',

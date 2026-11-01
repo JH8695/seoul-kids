@@ -3,6 +3,7 @@
 // 인증키는 코드에 쓰지 않고 환경변수(GitHub 에서는 Secret)로만 받아요.
 import fs from 'node:fs/promises';
 import { SERVICES, normalizeRow, isStale } from './seoul.mjs';
+import { matchTarget, gradeOn, koreanAge } from '../src/lib/grade.js';
 
 const KEY = process.env.SEOUL_API_KEY;
 const BASE = process.env.SEOUL_API_BASE || 'http://openapi.seoul.go.kr:8088';
@@ -80,3 +81,19 @@ courses.forEach((c) => { areas[c.area || '미분류'] = (areas[c.area || '미분
 console.log('구별 건수:', JSON.stringify(areas));
 console.log(`저장 완료: ${courses.length}건`);
 if (meta.errors.length === SERVICES.length) process.exit(1);
+
+// 대상 문구 점검표: 수집된 "대상" 문구를 종류별로 모아 기본 아이(2020·2017년생)에게 어떻게 판정되는지 적어 둠.
+// 판정이 이상한 문구를 찾아 규칙을 고칠 때 쓰는 파일이에요(앱은 읽지 않음). 실패해도 수집에는 영향 없음.
+try {
+  const ref = new Date();
+  const kids = [2020, 2017];
+  const counts = new Map();
+  courses.forEach((c) => { if (c.targetText) counts.set(c.targetText, (counts.get(c.targetText) ?? 0) + 1); });
+  const rows = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([t, n]) => ({ t, n, r: kids.map((by) => matchTarget(t, gradeOn(by, ref), koreanAge(by, ref), by).result[0]).join('') }));
+  await fs.writeFile('public/data/target-audit.json', JSON.stringify({ at: meta.fetchedAt, kids, legend: 'm=해당 n=아님 c=확인필요, 순서는 kids', rows }));
+  console.log(`대상 문구 점검표: ${rows.length}종`);
+} catch (e) {
+  console.warn('대상 문구 점검표 생략:', describe(e));
+}

@@ -11,6 +11,10 @@ const DEFAULTS = {
   favs: [], // 찜한 프로그램(같은 프로그램 묶음 열쇠 또는 id)
   hidden: [], // "관심 없어요"로 숨긴 프로그램(묶음 열쇠)
   hiddenRounds: [], // "이 회차만 남기기"로 숨긴 회차(예약 id)
+  bothKids: false, // 아이를 둘 이상 골랐을 때, 모두 갈 수 있는 프로그램만
+  places: {}, // 관심(★)·제외(✕) 장소: { 열쇠: { s: 'fav'|'hide', n: 이름 } }
+  searches: { recent: [], pinned: [] }, // 최근·고정 검색어
+  busy: [], // 갈 수 없는 시간: [{ id, days:[6], start:'10:00', end:'11:50' }]
   notes: {}, // 회차(예약 id)별 메모와 내 날짜: { id: { text, dates: ['YYYY-MM-DD'] } }
   _stamps: {}, // 항목별 마지막으로 고친 시각 (기기 간 동기화용)
   _linked: null, // 이 기기가 연결한 구글 계정(uid)

@@ -16,6 +16,7 @@ export const REASON_LABEL = {
   targeted: '특정 계층 대상',
   adult: '성인 대상',
   age: '대상 아님',
+  bothKids: '둘 다는 어려움',
 };
 
 const GROUP = /단체/;

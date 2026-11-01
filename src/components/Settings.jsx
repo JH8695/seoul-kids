@@ -1,6 +1,8 @@
 import { gradeLabel, gradeOn } from '../lib/grade';
 import { useState } from 'react';
 import AreaPicker from './AreaPicker';
+import BusyTimes from './BusyTimes';
+import PlacesList from './PlacesList';
 import { buildExport, buildShareLink, parseImport } from '../lib/backup';
 
 const YEARS = [];
@@ -122,6 +124,10 @@ export default function Settings({ settings, setSettings, now, sync, onClose }) 
         </p>
 
         <AreaPicker settings={settings} setSettings={setSettings} />
+
+        <PlacesList settings={settings} setSettings={setSettings} />
+
+        <BusyTimes settings={settings} setSettings={setSettings} />
 
         {(settings.hidden?.length ?? 0) > 0 && (
           <button className="outline" onClick={() => setSettings({ ...settings, hidden: [] })}>

@@ -1,7 +1,7 @@
 // 서울시 공공서비스예약(OpenAPI) 한 줄(row) → 앱에서 쓰는 강좌 객체로 바꾸는 변환기.
 // 네트워크를 쓰지 않는 순수 함수만 모아 두어서 test/ 에서 바로 검증할 수 있어요.
 import { statusOf } from '../src/lib/status.js';
-import { parseDetailSchedule } from './schedule.mjs';
+import { parseDetailSchedule, pickTimeSlots } from './schedule.mjs';
 import { parseNthWeeks } from '../src/lib/title.js';
 
 // 수집할 서비스 목록. 체육시설·시설대관 등을 더 보고 싶으면 여기에 한 줄 추가하면 돼요.
@@ -147,6 +147,7 @@ export function normalizeRow(row, source, now = Date.now()) {
   const recurring = !!nth || (pw.recurrence && pw.recurrence.startsWith('매주'));
   const detailDates = recurring ? null : sched.dates;
   const readFromDetail = !!(detailDates || sched.closedDates || sched.excludeMonths || (nth && !parseNthWeeks(title)) || (!pw.weekdays && sched.weekdays));
+  const slotInfo = pickTimeSlots(detail, vMin, vMax);
   const place = (row.PLACENM || '').trim();
   const c = {
     id: row.SVCID,
@@ -168,6 +169,8 @@ export function normalizeRow(row, source, now = Date.now()) {
     classStart,
     classEnd,
     timeKnown,
+    timeSlots: slotInfo ? slotInfo.slots : null,
+    timeSlotSrc: slotInfo ? slotInfo.sources : null,
     weekdays,
     recurrence,
     weekOfMonth: nth ? nth.weeks : null,
