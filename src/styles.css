@@ -641,3 +641,48 @@ body { overflow-x: hidden; }
 .cal-line-t { flex: 1 1 140px; font-size: 13px; font-weight: 600; }
 .cal-line button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: inherit; cursor: pointer; }
 .cal-add-box .hint { white-space: pre-line; margin: 0; }
+
+/* ===== PC 상단(툴바) 정리: 찾기 / 상태·정렬 / 필터 4칸(라벨 + 내용) ===== */
+.day-all { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13px; color: var(--ink); }
+.day-all.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.days.all .day { background: transparent; color: var(--muted); }
+.days.all .day.sat, .days.all .day.sun { color: var(--muted); }
+@media (min-width: 900px) {
+  .filters.toolbar.tb2 { gap: 10px; padding: 10px 12px 8px; }
+  .tb-row { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+  .tb-row .searchbox { flex: 1 1 260px; min-width: 200px; }
+  .tb-row .search { padding: 9px 12px; }
+  .quick { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .quick > button { border: 0; border-radius: 0; background: transparent; height: 38px; padding: 0 14px; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; align-self: auto; }
+  .quick > button + button { border-left: 1px solid var(--line); }
+  .quick > .fav-toggle.on { background: #c0392b; color: #fff; }
+  .quick > .fav-toggle.place.on { background: #fff3d6; color: #8a5a00; }
+  .quick > .fbtn.on { background: var(--ink); color: var(--bg); }
+  .tb-status { justify-content: space-between; flex-wrap: nowrap; }
+  .tb2 .tabs { display: inline-grid; grid-template-columns: repeat(4, auto); flex: 0 0 auto; }
+  .tb2 .tabs button { padding: 7px 16px; font-size: 14px; }
+  .sort-lbl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .sort-lbl select { padding: 7px 10px; }
+  .tb-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .fgroup.wide { grid-column: 1 / -1; }
+  .fgroup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .flabel { flex: 0 0 34px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .fgroup .cats, .fgroup .kids { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; padding: 0; overflow: visible; }
+  .fgroup .chip { padding: 5px 10px; font-size: 13px; }
+  .fgroup .cats, .fgroup .kids { gap: 5px; }
+  .fgroup .days { flex-wrap: nowrap; gap: 4px; }
+  .fgroup .day { width: 32px; height: 32px; font-size: 13px; }
+  .fgroup .scope-hint { flex: 1 1 0; min-width: 0; margin: 0; display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px; }
+  .fgroup .scope-hint .scope-areas { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fgroup .scope-hint .link-btn { flex: 0 0 auto; white-space: nowrap; }
+  .fgroup .seg button { padding: 6px 12px; }
+}
+
+@media (min-width: 900px) {
+  .tb-right { display: inline-flex; align-items: center; gap: 12px; }
+  .fold-btn { border: 0; background: transparent; color: var(--home); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 4px; cursor: pointer; white-space: nowrap; }
+  .tb-summary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--line); background: transparent; padding: 8px 0 0; cursor: pointer; font: inherit; color: inherit; }
+  .sum-pill { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--closed-bg); color: var(--muted); }
+  .sum-pill.on { background: var(--ink); color: var(--bg); font-weight: 600; }
+  .filters.toolbar.tb2 { gap: 8px; }
+}

@@ -82,6 +82,12 @@ export default function App() {
   const [favOnly, setFavOnly] = useState(false);
   const [placeOnly, setPlaceOnly] = useState(false); // ★ 관심 장소만 보기
   const [searchFocus, setSearchFocus] = useState(false);
+  const FILTERS_KEY = 'seoulkids:filtersOpen';
+  const [filtersOpen, setFiltersOpen] = useState(() => { try { return localStorage.getItem(FILTERS_KEY) !== '0'; } catch { return true; } });
+  const toggleFilters = () => setFiltersOpen((v) => {
+    try { localStorage.setItem(FILTERS_KEY, v ? '0' : '1'); } catch { /* 저장 불가 환경 */ }
+    return !v;
+  });
   const [placesOpen, setPlacesOpen] = useState(false); // 업체(장소) 목록 페이지
   const [placeFocus, setPlaceFocus] = useState(null); // { key, name }: 이 장소의 프로그램만 보기
   const [showHidden, setShowHidden] = useState(false); // 숨긴 프로그램만 보기(되살리기용)
@@ -112,6 +118,7 @@ export default function App() {
   const days = settings.days ?? [];
   const phoneCalendar = !isDesktop && view === 'calendar';
   // 요일을 7개 모두 고르는 것은 "요일 필터 없음"과 같아요 (그대로 두면 요일을 모르는 프로그램이 모두 접혀 버림)
+  const allDays = days.length === 0 || days.length >= 7;
   const effDays = useMemo(() => (phoneCalendar || days.length >= 7 ? [] : days), [phoneCalendar, days]);
   const toggleDay = (d) =>
     setSettings({ ...settings, days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d] });
@@ -678,7 +685,7 @@ export default function App() {
       <input
         type="search"
         className="search"
-        placeholder="프로그램명·장소 검색"
+        placeholder={isDesktop ? '프로그램명·장소 검색' : '프로그램·장소 검색'}
         aria-label="프로그램명·장소 검색"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -704,9 +711,11 @@ export default function App() {
       type="button"
       className={`fav-toggle${favOnly ? ' on' : ''}`}
       aria-pressed={favOnly}
+      aria-label={`찜 ${favCount}개만 보기`}
+      title="찜한 프로그램만 보기"
       onClick={() => setFavOnly((v) => !v)}
     >
-      {favOnly ? '♥' : '♡'} 찜 {favCount}
+      {favOnly ? '♥' : '♡'}{isDesktop ? ' 찜 ' : ' '}{favCount}
     </button>
   );
   const placeBtn = favPlaces.length > 0 || placeOnly ? (
@@ -714,10 +723,11 @@ export default function App() {
       type="button"
       className={`fav-toggle place${placeOnly ? ' on' : ''}`}
       aria-pressed={placeOnly}
+      aria-label={`관심 장소 ${favPlaces.length}곳의 프로그램만 보기`}
       title="관심 장소(★)의 프로그램만 보기"
       onClick={() => setPlaceOnly((v) => !v)}
     >
-      {placeOnly ? '★' : '☆'} 장소 {favPlaces.length}
+      {placeOnly ? '★' : '☆'} {isDesktop ? '관심 장소 ' : ''}{favPlaces.length}
     </button>
   ) : null;
   const tabsEl = (
@@ -731,6 +741,7 @@ export default function App() {
   );
   const catsEl = (
     <div className="cats" role="group" aria-label="분야">
+      <button type="button" className={`chip all${cats.length === 0 ? ' on' : ''}`} aria-pressed={cats.length === 0} onClick={() => setCats([])}>전체</button>
       {CATEGORIES.map((c) => (
         <button
           key={c.id}
@@ -742,7 +753,6 @@ export default function App() {
           <span aria-hidden>{c.emoji}</span> {c.label} <span className="n">{catCounts[c.id] ?? 0}</span>
         </button>
       ))}
-      {cats.length > 0 && <button type="button" className="link-btn" onClick={() => setCats([])}>전체 분야</button>}
     </div>
   );
   const bothEl = activeIds.length > 1 ? (
@@ -752,7 +762,6 @@ export default function App() {
   ) : null;
   const kidsEl = (
     <div className="kids" role="group" aria-label="아이">
-      <span className="days-label">아이</span>
       {kids.map((k) => {
         const g = gradeOn(k.birthYear, now);
         return (
@@ -791,25 +800,32 @@ export default function App() {
         <button type="button" className="link-btn" onClick={() => setSettingsOpen(true)}>구 바꾸기</button>
       </p>
     ) : null;
+  // 요일: "전체"를 알약으로 앞에 두고, 아무것도 안 골랐거나 7개를 다 고른 상태는 "전체"로 보여줌(요일 버튼은 연하게)
+  const pickDay = (d) =>
+    setSettings({ ...settings, days: allDays ? [d] : days.includes(d) ? days.filter((x) => x !== d) : [...days, d] });
   const daysEl = !phoneCalendar ? (
-    <div className="days" role="group" aria-label="이용 요일">
-      <span className="days-label">요일</span>
+    <div className={`days${allDays ? ' all' : ''}`} role="group" aria-label="이용 요일">
+      <button type="button" className={`day-all${allDays ? ' on' : ''}`} aria-pressed={allDays} onClick={() => setSettings({ ...settings, days: [] })}>전체</button>
       {DAY_ORDER.map((d) => (
         <button
           key={d}
           type="button"
-          aria-pressed={days.includes(d)}
-          className={`day${days.includes(d) ? ' on' : ''}${d === 0 ? ' sun' : d === 6 ? ' sat' : ''}`}
-          onClick={() => toggleDay(d)}
+          aria-pressed={!allDays && days.includes(d)}
+          className={`day${!allDays && days.includes(d) ? ' on' : ''}${d === 0 ? ' sun' : d === 6 ? ' sat' : ''}`}
+          onClick={() => pickDay(d)}
         >
           {DAY_LABELS[d]}
         </button>
       ))}
-      {days.length > 0 && (
-        <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>
-      )}
     </div>
   ) : null;
+  // 필터를 접었을 때 보여주는 한 줄 요약: 기본값이 아닌 것만 진하게
+  const sumItems = [
+    { k: 'cats', on: cats.length > 0, text: cats.length ? cats.map((id) => CATEGORIES.find((c) => c.id === id)?.label).filter(Boolean).join('·') : '분야 전체' },
+    { k: 'kids', on: activeIds.length !== kids.length || (bothKids && activeIds.length > 1), text: `${kids.filter((k) => activeIds.includes(k.id)).map((k) => k.label).join('·') || '아이 없음'}${bothKids && activeIds.length > 1 ? ' (둘 다)' : ''}` },
+    { k: 'area', on: scope === 'all', text: scope === 'near' ? (settings.areas.length > 1 ? `${settings.areas[0]} 외 ${settings.areas.length - 1}곳` : settings.areas[0] ?? '구 선택 없음') : '서울 전체' },
+    { k: 'days', on: !allDays, text: allDays ? '요일 전체' : DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_LABELS[d]).join('·') },
+  ];
   const checkLabels = (
     <>
       <label><input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} /> 무료만 보기</label>
@@ -843,7 +859,7 @@ export default function App() {
   );
 
   // ---- 폰: 분야·아이·구·옵션 버튼 4개 + 아래에서 올라오는 선택 창 ----
-  const phoneOptionCount = optionCount + (days.length > 0 ? 1 : 0) + (sort !== 'apply' ? 1 : 0);
+  const phoneOptionCount = optionCount + (!allDays ? 1 : 0) + (sort !== 'apply' ? 1 : 0);
   const daysText = DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_LABELS[d]).join('·');
   const fbtn = (label, badge, on, onClick) => (
     <button type="button" className={`fbtn${on ? ' on' : ''}`} onClick={onClick}>
@@ -858,14 +874,14 @@ export default function App() {
         {fbtn(scope === 'near' ? '구' : '서울', scope === 'near' ? settings.areas.length : null, scope === 'all', () => setSheet('area'))}
         {fbtn('옵션', phoneOptionCount || null, phoneOptionCount > 0, () => setSheet('options'))}
       </div>
-      {(cats.length > 0 || days.length > 0) && (
+      {(cats.length > 0 || !allDays) && (
         <div className="ftags">
           {cats.map((id) => (
             <button key={id} type="button" className="ftag" onClick={() => toggleCat(id)}>
               {CAT_BY_ID[id].emoji} {CAT_BY_ID[id].label} ✕
             </button>
           ))}
-          {days.length > 0 && (
+          {!allDays && (
             <button type="button" className="ftag" onClick={() => setSettings({ ...settings, days: [] })}>요일 {daysText} ✕</button>
           )}
         </div>
@@ -935,7 +951,7 @@ export default function App() {
                   {DAY_LABELS[d]}
                 </button>
               ))}
-              {days.length > 0 && <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>}
+              {!allDays && <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>}
             </div>
             {phoneCalendar && <p className="hint">달력 화면에서는 요일 필터가 적용되지 않아요. 목록에서 적용돼요.</p>}
           </div>
@@ -982,10 +998,31 @@ export default function App() {
       )}
 
       {isDesktop ? (
-        <nav className="filters toolbar" aria-label="필터">
-          <div className="tb-line">{searchEl}{favBtn}{placeBtn}{tabsEl}{sortEl}</div>
-          <div className="tb-line tb-wrap">{catsEl}{kidsEl}</div>
-          <div className="tb-line">{scopeSeg}{hintEl}{daysEl}{placesBtn}{optionsEl}</div>
+        <nav className="filters toolbar tb2" aria-label="필터">
+          <div className="tb-row">
+            {searchEl}
+            <div className="quick" role="group" aria-label="바로가기">{favBtn}{placeBtn}{placesBtn}</div>
+            {optionsEl}
+          </div>
+          <div className="tb-row tb-status">
+            {tabsEl}
+            <div className="tb-right">
+              <label className="sort-lbl"><span>정렬</span>{sortEl}</label>
+              <button type="button" className="fold-btn" aria-expanded={filtersOpen} onClick={toggleFilters}>필터 {filtersOpen ? '접기 ▴' : '펼치기 ▾'}</button>
+            </div>
+          </div>
+          {filtersOpen ? (
+            <div className="tb-grid">
+              <div className="fgroup wide"><span className="flabel">분야</span>{catsEl}</div>
+              <div className="fgroup"><span className="flabel">아이</span>{kidsEl}</div>
+              <div className="fgroup"><span className="flabel">요일</span>{daysEl}</div>
+              <div className="fgroup wide"><span className="flabel">지역</span>{scopeSeg}{hintEl}</div>
+            </div>
+          ) : (
+            <button type="button" className="tb-summary" onClick={toggleFilters} aria-label="필터 펼치기">
+              {sumItems.map((x) => (<span key={x.k} className={`sum-pill${x.on ? ' on' : ''}`}>{x.text}</span>))}
+            </button>
+          )}
         </nav>
       ) : (
         <nav className="filters" aria-label="필터">
