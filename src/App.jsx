@@ -12,6 +12,7 @@ import { cleanPlaces, listPlaces, placeKeyOf, placeName, placeState, withPlace }
 import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
 import { isNewId, updateSeen } from './lib/firstSeen';
 import { dateTrust } from './lib/dateTrust';
+import { refineMatch } from './lib/targetRefine';
 import { toYmd, dowOfYmd, occurrenceDates } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
 import { applyFit, applyTime, daysLabel, editLabels, forcedMatch } from './lib/edits';
@@ -234,22 +235,9 @@ export default function App() {
         const kidMatches = kids.map((kid) => {
           const g = gradeOn(kid.birthYear, ref);
           const age = koreanAge(kid.birthYear, ref);
-          let match = matchTarget(c.targetText, g, age, kid.birthYear);
-          if (match.result === 'check' && c.detailTarget) {
-            const m2 = matchTarget(c.detailTarget, g, age, kid.birthYear);
-            if (m2.result !== 'check') { match = m2; targetNote = '상세 설명 기준'; }
-          }
-          // 제목에 "초등 1~3학년"처럼 학년이 적혀 있으면 대상 칸보다 좁은 조건으로 봄
-          if (titleTarget) {
-            const m3 = matchTarget(titleTarget, g, age, kid.birthYear);
-            if (m3.result === 'nomatch' && match.result !== 'nomatch') {
-              match = { result: 'nomatch', tags: [...match.tags, '제목 기준'] };
-              targetNote = '제목의 학년 기준';
-            } else if (m3.result === 'match' && match.result === 'check') {
-              match = m3;
-              targetNote = '제목의 학년 기준';
-            }
-          }
+          const refined = refineMatch(matchTarget(c.targetText, g, age, kid.birthYear), { detailTarget: c.detailTarget, titleTarget }, g, age, kid.birthYear);
+          const match = refined.match;
+          if (refined.note) targetNote = refined.note;
           return { kid, grade: g, match };
         });
         // 내가 고친 대상(아이별 "해당"/"해당 안 됨")이 자동 판정보다 우선

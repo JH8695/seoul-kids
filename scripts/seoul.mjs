@@ -107,8 +107,14 @@ export function classify({ minClass = '', title = '', place = '' }) {
 
 // 상세 글 안의 "■ 대 상 : 초등학생 (전 학년) ..." 같은 줄을 뽑아 둠 (대상 칸이 애매할 때 보조로 씀)
 export function parseDetailTarget(detail) {
-  const m = detail.match(/대\s?상\s*[:：]\s*(.{2,60}?)(?=\s*[■▣◆●○▶※]|\s(?:요\s?건|수강료|기\s?간|인\s?원|일\s?시|장\s?소|신청)|$)/);
-  return m ? m[1].replace(/[▹▶►※■▣◆●○\s]+$/, '').trim() : null;
+  // 항목 끝: ○■ 같은 기호, " - " 로 시작하는 보충 줄, 다음 항목 이름(인원·일시·장소·비용·문의 등)
+  const END = /\s*[■▣◆●○▶▷※]|\s-\s|\s(?:모집\s?인원|참여\s?인원|참가\s?인원|정\s?원|인\s?원|일\s?시|일\s?정|장\s?소|운영|요\s?건|수강료|체험비|비\s?용|문의|예약|신청|접수|기\s?간)/;
+  const m = /대\s?상\s*[:：]\s*/.exec(detail);
+  if (!m) return null;
+  const rest = detail.slice(m.index + m[0].length, m.index + m[0].length + 140);
+  const cut = rest.search(END);
+  const text = (cut >= 0 ? rest.slice(0, cut) : rest).replace(/[▹▶►※■▣◆●○\s]+$/, '').trim();
+  return text.length >= 2 && text.length <= 90 ? text : null;
 }
 
 const num = (v) => {

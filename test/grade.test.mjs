@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { matchTarget, gradeOn } from '../src/lib/grade.js';
+import { matchTarget, gradeOn, koreanAge } from '../src/lib/grade.js';
 
 const d = (s) => new Date(s);
 // 2017년생: 2026학년도 초3, 2027학년도 초4 / 2020년생: 2026 취학 전, 2027학년도 초1
@@ -30,6 +30,12 @@ const cases = [
   ['유아 및 초등 저학년', 'match', 'match'],
   ['초등 저학년(유아 동반 불가)', 'nomatch', 'match'],
   ['초등 1~3학년, 만 3세 유아', 'nomatch', 'match'], // 나이 조건이 막으면 구제하지 않음
+  // "N학년 이상/이하"는 범위 (예전엔 정확히 N학년으로만 읽혀서 초5·초6 도 "4학년 이상"에서 빠졌음)
+  ['초등학교 4학년 이상 동반가족', 'nomatch', 'nomatch'], // 초3 은 4학년 미만
+  ['4학년 이상 가족', 'nomatch', 'nomatch'],
+  ['초등 3학년 이하', 'nomatch', 'match'], // 초3 은 3학년 이하에 포함
+  ['초등 2학년 이하', 'nomatch', 'nomatch'],
+  ['초등 3학년 이상', 'nomatch', 'match'],
   // 개월 · 영아
   ['유아(영아(36개월 미만) 동반 가족)', 'nomatch', 'nomatch'],
   ['12~24개월', 'nomatch', 'nomatch'],
@@ -51,3 +57,15 @@ for (const [t, k, e] of cases) {
   assert.equal(E(t), e, `초3: "${t}" → ${E(t)} (기대 ${e})`);
 }
 console.log('grade.test.mjs OK');
+
+// 초5·초6·중1 도 확인: "4학년 이상"은 초4~초6, "중학교 1학년 이상"은 중1~중3
+{
+  const d = new Date('2026-11-10T06:30:00Z');
+  const r = (t, by) => matchTarget(t, gradeOn(by, d), koreanAge(by, d), by).result;
+  assert.equal(r('초등학교 4학년 이상 동반가족', 2015), 'match'); // 초5
+  assert.equal(r('초등학교 4학년 이상 동반가족', 2014), 'match'); // 초6
+  assert.equal(r('초등학교 4학년 이상 동반가족', 2013), 'nomatch'); // 중1
+  assert.equal(r('초등 3학년 이하', 2016), 'nomatch'); // 초4
+  assert.equal(r('중학교 1학년 이상', 2013), 'match'); // 중1
+}
+console.log('grade 이상/이하 OK');

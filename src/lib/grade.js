@@ -110,10 +110,10 @@ export function matchTarget(text, grade, age, birthYear = null) {
   //    학교급 표시가 없으면 초등으로 간주. 오른쪽에 학교급이 없으면 왼쪽 학교급을 따름.
   t = t.replace(
     new RegExp(
-      `(?:(?<![가-힣])(${LV}))?(\\d{1,2})(?:학년)?(?:${RANGE_SEP}(?:(?<![가-힣])(${LV}))?(\\d{1,2})(?:학년)?)?`,
+      `(?:(?<![가-힣])(${LV}))?(\\d{1,2})(?:학년)?(?:${RANGE_SEP}(?:(?<![가-힣])(${LV}))?(\\d{1,2})(?:학년)?)?(이상|이하|부터)?`,
       'g',
     ),
-    (m, p1, a, p2, b) => {
+    (m, p1, a, p2, b, dir) => {
       if (!p1 && !p2 && !/학년/.test(m)) return m; // 학교급도 "학년"도 없으면 학년 표기가 아님 (예: 5~7세, 12명)
       const l1 = levelOf(p1) ?? 0;
       const l2 = p2 ? levelOf(p2) : l1;
@@ -121,8 +121,11 @@ export function matchTarget(text, grade, age, birthYear = null) {
       const B = b ? +b : null;
       if (A < 1 || A > LEVEL_MAX[l1]) return m;
       if (B != null && (B < 1 || B > LEVEL_MAX[l2])) return m;
-      const lo = LEVEL_OFFSET[l1] + A;
-      const hi = B != null ? LEVEL_OFFSET[l2] + B : lo;
+      let lo = LEVEL_OFFSET[l1] + A;
+      let hi = B != null ? LEVEL_OFFSET[l2] + B : lo;
+      // "4학년 이상" = 그 학교급의 끝 학년까지, "3학년 이하" = 그 학교급의 1학년부터. (범위 뒤의 이상·이하는 무시)
+      if (B == null && (dir === '이상' || dir === '부터')) hi = LEVEL_OFFSET[l1] + LEVEL_MAX[l1];
+      if (B == null && dir === '이하') { hi = lo; lo = LEVEL_OFFSET[l1] + 1; }
       grade >= Math.min(lo, hi) && grade <= Math.max(lo, hi) ? (pos = true) : (neg = true);
       return '';
     },
