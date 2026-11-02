@@ -3,8 +3,8 @@
 // 항목(키)마다 "마지막으로 고친 시각(stamp)"을 따로 기록해서:
 //   - 평소: 항목별로 나중에 고친 쪽을 따라요 (지운 것도 지운 대로 반영돼요)
 //   - 처음 계정에 연결할 때: 찜·숨김·메모는 양쪽 것을 합쳐요 (한쪽이 다른 쪽을 덮어써서 사라지지 않게)
-export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
-const LIST_KEYS = ['favs', 'hidden', 'hiddenRounds']; // 합칠 때 합집합으로
+export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'hideWords', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+const LIST_KEYS = ['favs', 'hidden', 'hiddenRounds', 'hideWords']; // 합칠 때 합집합으로
 const PREF_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy']; // 개인 취향 설정
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);

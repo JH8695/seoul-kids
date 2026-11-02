@@ -51,7 +51,7 @@ export function KidPills({ kidMatches }) {
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
   needDetail, online, standing, dateSource, chips, actions, note, onNote, busy,
-  placeSt, placeMemo, onPlace, isNew, trust,
+  placeSt, placeMemo, onPlace, onOpenCenter, isNew, trust,
   focusYmd, onGoCalendar, imageSchedule, edits = [],
 }) {
   const [open, setOpen] = useState(false);
@@ -142,6 +142,9 @@ export default function CourseCard({
             )}
             {placeMenu && onPlace && (
               <span className="place-menu">
+                {onOpenCenter && (
+                  <button type="button" onClick={() => { onOpenCenter(); setPlaceMenu(false); }}>이 센터 프로그램 보기</button>
+                )}
                 <button type="button" onClick={() => { onPlace(placeSt === 'fav' ? null : 'fav'); setPlaceMenu(false); }}>
                   {placeSt === 'fav' ? '★ 관심 센터 해제' : '★ 관심 센터로'}
                 </button>

@@ -2,9 +2,10 @@
 import { cleanNote } from './edits.js';
 import { cleanBusy } from './busy.js';
 import { cleanPlaces } from './places.js';
+import { cleanWords } from './hideWords.js';
 import { cleanSearches } from './searches.js';
 
-export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'hideWords', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
 
 export function buildExport(settings) {
   const out = {};
@@ -41,6 +42,7 @@ export function parseImport(text) {
     if (!Array.isArray(s.busy)) return { error: '갈 수 없는 시간 항목이 올바르지 않아요.' };
     out.busy = cleanBusy(s.busy);
   }
+  if (s.hideWords !== undefined) out.hideWords = cleanWords(s.hideWords);
   if (s.scope !== undefined) out.scope = s.scope === 'all' ? 'all' : 'near';
   if (s.bothKids !== undefined) out.bothKids = s.bothKids === true;
   if (s.places !== undefined) out.places = cleanPlaces(s.places);

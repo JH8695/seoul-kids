@@ -3,12 +3,13 @@ import { useState } from 'react';
 import AreaPicker from './AreaPicker';
 import BusyTimes from './BusyTimes';
 import PlacesList from './PlacesList';
+import HideWords from './HideWords';
 import { buildExport, buildShareLink, parseImport } from '../lib/backup';
 
 const YEARS = [];
 for (let y = 2012; y <= 2025; y++) YEARS.push(y);
 
-export default function Settings({ settings, setSettings, now, sync, onClose }) {
+export default function Settings({ settings, setSettings, wordCounts, now, sync, onClose }) {
   const [exportText, setExportText] = useState('');
   const [importText, setImportText] = useState('');
   const [backupMsg, setBackupMsg] = useState('');
@@ -126,6 +127,8 @@ export default function Settings({ settings, setSettings, now, sync, onClose }) 
         <AreaPicker settings={settings} setSettings={setSettings} />
 
         <PlacesList settings={settings} setSettings={setSettings} />
+
+        <HideWords settings={settings} setSettings={setSettings} wordCounts={wordCounts} />
 
         <BusyTimes settings={settings} setSettings={setSettings} />
 

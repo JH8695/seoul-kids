@@ -97,7 +97,8 @@ const R = (over = {}, stamps = {}) => ({ data: pickSync(S(over)), stamps });
   assert.deepEqual(r.values.favs, ['z']);
 }
 
-assert.equal(SYNC_KEYS.length, 13);
+assert.equal(SYNC_KEYS.length, 14);
+assert.ok(SYNC_KEYS.includes('hideWords')); // 숨길 단어도 폰·PC 가 같이 씀
 assert.ok(SYNC_KEYS.includes('scope')); // 선택한 구 / 서울 전체 도 기기끼리 같이 씀
 assert.ok(SYNC_KEYS.includes('busy')); // 갈 수 없는 시간도 폰·PC 가 같이 씀
 
@@ -127,4 +128,6 @@ assert.ok(SYNC_KEYS.includes('busy')); // 갈 수 없는 시간도 폰·PC 가 �
   assert.equal(mergeUnion({ scope: 'all' }, {}).scope, 'all'); // 서버에 값이 없으면 내 기기 값
   assert.equal(mergeUnion({ scope: 'x' }, {}).scope, 'near');
 }
+// 숨길 단어: 처음 연결할 때 양쪽 단어를 합침
+assert.deepEqual([...mergeUnion({ hideWords: ['서울형키즈카페'] }, { hideWords: ['키즈카페', '서울형키즈카페'] }).hideWords].sort(), ['서울형키즈카페', '키즈카페']);
 console.log('sync.test.mjs OK');
