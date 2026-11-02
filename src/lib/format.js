@@ -37,14 +37,19 @@ export function fmtClassSchedule(c) {
   // 시각을 모르는 경우: 수집기가 표시했거나, 도서관 사이트가 (00:00~00:00)으로 비워 둔 경우
   // 시작이 00:00 이면 실제 시간이 아니라 "시간 미정/종일"이라는 뜻이에요
   const noTime = c.timeKnown === false || fmtTime(c.classStart) === '00:00';
+  // 하루 여러 회차(시간대가 둘 이상)면 합친 범위 대신 시간대를 나눠서 보여줌
+  const slotTxt = !noTime && c.timeSlots?.length > 1
+    ? c.timeSlots.map((s) => (s.end && s.end !== s.start ? `${s.start}–${s.end}` : s.start)).join(' · ')
+    : null;
   if (!c.classEnd || sameDay(c.classStart, c.classEnd)) {
     if (noTime) return fmtDate(c.classStart);
+    if (slotTxt) return `${fmtDate(c.classStart)} ${slotTxt}`;
     const end = c.classEnd && fmtTime(c.classEnd) !== fmtTime(c.classStart) ? `–${fmtTime(c.classEnd)}` : '';
     return `${fmtDate(c.classStart)} ${fmtTime(c.classStart)}${end}`;
   }
   const rec = c.recurrence ? `${c.recurrence} ` : '';
   const n = c.sessions ? ` · 총 ${c.sessions}회` : '';
-  const tm = noTime ? '' : ` · ${rec}${fmtTime(c.classStart)}${fmtTime(c.classEnd) !== fmtTime(c.classStart) ? `–${fmtTime(c.classEnd)}` : ''}`;
+  const tm = noTime ? '' : slotTxt ? ` · ${rec}${slotTxt}` : ` · ${rec}${fmtTime(c.classStart)}${fmtTime(c.classEnd) !== fmtTime(c.classStart) ? `–${fmtTime(c.classEnd)}` : ''}`;
   return `${fmtDate(c.classStart)}~${fmtDate(c.classEnd)}${n}${tm}`;
 }
 

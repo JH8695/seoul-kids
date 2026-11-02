@@ -25,6 +25,7 @@ assert.equal(parseDetailTarget(det), '초등학교 4학년 이상 동반가족')
 assert.equal(parseDetailTarget('■ 대 상 : 초등학생 (전 학년) 과 학부모 ■ 일시 : 토요일'), '초등학생 (전 학년) 과 학부모');
 assert.equal(parseDetailTarget('참여대상 : 어린이(만7세이상)동반가족 참여인원 : 회차별 15명'), '어린이(만7세이상)동반가족');
 assert.equal(parseDetailTarget('대상이 없는 글'), null);
+assert.equal(parseDetailTarget('ㅇ 참여대상 : 어린이(만7세이상)동반가족 ㅇ 참여인원 : 회차별 15명 ㅇ 장소 : 남산'), '어린이(만7세이상)동반가족'); // ㅇ 글머리 기호
 
 // ── 실제 사례 1: 노을별누리 "4학년 이상 가족" — 대상 칸은 "가족(어린이는 부모 동반 필수)" 라서 둘 다 "해당"이었음 ──
 const NOEUL = '가족(어린이는 부모 동반 필수)';

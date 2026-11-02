@@ -1,5 +1,6 @@
 // 일정 파일(.ics) 만들기와 "일정 정보 복사" 글. 네트워크·화면과 무관한 순수 함수예요.
 import { fmtDate, fmtTime } from './format.js';
+import { fmtMyDate } from './mydates.js';
 
 const CRLF = '\r\n';
 const esc = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
@@ -97,4 +98,29 @@ export function eventText(ev) {
     ? `${fmtDate(ev.start)} ${hhmm(ev.start)}${ev.end ? `–${hhmm(ev.end)}` : ''}`
     : `${fmtDate(`${ev.date}T12:00:00+09:00`)} (하루 종일)`;
   return [ev.title, when, ev.location ? `장소: ${ev.location}` : null, ev.description?.split('\n').pop() || null].filter(Boolean).join('\n');
+}
+
+// ───────── 일정 복사 글 (캘린더 앱의 새 일정에 붙여넣기 좋게) ─────────
+const timeLine = (course) => {
+  if (course.timeSlots?.length > 1) return course.timeSlots.map((s) => (s.end && s.end !== s.start ? `${s.start}–${s.end}` : s.start)).join(', ');
+  if (course.timeKnown && course.classStart && fmtTime(course.classStart) !== '00:00') {
+    const a = fmtTime(course.classStart);
+    const b = course.classEnd ? fmtTime(course.classEnd) : a;
+    return b !== a ? `${a}–${b}` : a;
+  }
+  return '';
+};
+
+/**
+ * 복사할 글. kind: 'apply'(접수 시작) | 'use'(이용 일정)
+ *   use 는 dates(이용 날짜 목록, 없으면 focusYmd 하루)와 시간대를 한 줄로 묶음
+ */
+export function copyTextFor(kind, course, { dates = [], focusYmd = null } = {}) {
+  const tail = [course.place ? `장소: ${course.place}` : null, course.url ?? null];
+  if (kind === 'apply') {
+    return [`[접수 시작] ${course.title}`, `${fmtDate(course.applyStart)} ${fmtTime(course.applyStart)} 접수 시작`, ...tail].filter(Boolean).join('\n');
+  }
+  const ds = (dates.length ? dates : focusYmd ? [focusYmd] : []).slice(0, 12);
+  const when = [ds.map((d) => fmtMyDate(d)).join(' · '), timeLine(course)].filter(Boolean).join(' ');
+  return [`[이용] ${course.title}`, when || null, ...tail].filter(Boolean).join('\n');
 }

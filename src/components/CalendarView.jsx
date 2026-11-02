@@ -8,7 +8,7 @@ const HEAD = [0, 1, 2, 3, 4, 5, 6]; // 일~토
 
 const timeKey = (c) => (c.timeKnown && c.classStart ? c.classStart.slice(11, 16) : '99:99');
 
-export default function CalendarView({ rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {}, focusDate = null }) {
+export default function CalendarView({ dayFilter = [], rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {}, focusDate = null }) {
   const today = useMemo(() => toYmd(new Date()), []);
   const [cursor, setCursor] = useState(() => ({ y: +today.slice(0, 4), m: +today.slice(5, 7) }));
   const [sel, setSel] = useState(today);
@@ -34,12 +34,13 @@ export default function CalendarView({ rows, renderItem, compact = false, groupB
       if (o.estimated && o.dates.length > 1) est = true;
       if (o.loose && o.dates.length > 1) loose = true;
       for (const d of o.dates) {
+        if (dayFilter.length && !dayFilter.includes(dowOfYmd(d))) continue; // 고른 요일이 아닌 날은 찍지 않음
         if (!map.has(d)) map.set(d, []);
         map.get(d).push({ row, loose: o.loose && o.dates.length > 1 });
       }
     }
     return { byDate: map, anyEstimated: est, anyLoose: loose };
-  }, [normalRows, today]);
+  }, [normalRows, today, dayFilter]);
 
   const key = monthKey(cursor.y, cursor.m);
   const cells = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
@@ -154,7 +155,7 @@ export default function CalendarView({ rows, renderItem, compact = false, groupB
             <button
               key={ymd}
               type="button"
-              className={`cal-cell${ymd === today ? ' today' : ''}${ymd === sel ? ' sel' : ''}${col === 6 ? ' sat' : col === 0 ? ' sun' : ''}`}
+              className={`cal-cell${ymd === today ? ' today' : ''}${ymd === sel ? ' sel' : ''}${dayFilter.length && !dayFilter.includes(col) ? ' off' : ''}${col === 6 ? ' sat' : col === 0 ? ' sun' : ''}`}
               onClick={() => setSel(ymd)}
               aria-label={`${+ymd.slice(5, 7)}월 ${+ymd.slice(8, 10)}일, 프로그램 ${sureItems.length}개${items.length > sureItems.length ? `, 기간 중 운영 ${items.length - sureItems.length}개` : ''}`}
               aria-pressed={ymd === sel}

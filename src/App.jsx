@@ -5,7 +5,6 @@ import { statusOf } from './lib/status';
 import { audienceOf, REASON_LABEL } from './lib/audience';
 import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
-import { fmtMyDate } from './lib/mydates';
 import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
 import { classifyBusy, cleanBusy } from './lib/busy';
 import { cleanPlaces, listPlaces, placeKeyOf, placeName, placeState, withPlace } from './lib/places';
@@ -15,7 +14,7 @@ import { dateTrust } from './lib/dateTrust';
 import { refineMatch } from './lib/targetRefine';
 import { toYmd, dowOfYmd, occurrenceDates } from './lib/calendar';
 import { chipLabel, extractTitleTarget, groupKeyOf, isOnline, isStanding, titleInfo } from './lib/title';
-import { applyFit, applyTime, daysLabel, editLabels, forcedMatch } from './lib/edits';
+import { applyFit, applyTimes, cleanNote, daysLabel, editLabels, forcedMatch, noteSlots } from './lib/edits';
 import { useSettings } from './lib/useSettings';
 import { useSync } from './lib/useSync';
 import { parseShareHash } from './lib/backup';
@@ -120,7 +119,7 @@ export default function App() {
   const phoneCalendar = !isDesktop && view === 'calendar';
   // 요일을 7개 모두 고르는 것은 "요일 필터 없음"과 같아요 (그대로 두면 요일을 모르는 프로그램이 모두 접혀 버림)
   const allDays = days.length === 0 || days.length >= 7;
-  const effDays = useMemo(() => (phoneCalendar || days.length >= 7 ? [] : days), [phoneCalendar, days]);
+  const effDays = useMemo(() => (allDays ? [] : days), [allDays, days]); // 달력 화면에도 적용 (날짜 칸 단위)
   const toggleDay = (d) =>
     setSettings({ ...settings, days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d] });
   const toggleCat = (id) => setCats((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
@@ -195,12 +194,10 @@ export default function App() {
   };
 
   // 프로그램마다: 제목에서 읽은 일정·학년, 지금 상태, 아이별 대상 판정, 요일, 거리, 묶음 열쇠
-  const enriched = useMemo(
-    () =>
-      courses.map((c) => {
+  const buildRow = (c, noteIn) => {
         const status = statusOf(c, nowMs);
         // 내가 적은 날짜가 있으면 제목에서 읽은 일정보다 항상 우선
-        const note = notes[c.id] ?? null;
+        const note = noteIn;
         const myDates = note?.dates?.length ? [...note.dates].sort() : null;
         const editDays = !myDates && note?.days?.length ? note.days : null; // 내가 고친 요일(+몇째 주)
         // 우선순위: 내 날짜 > 제목에 적힌 날짜 > 상세 설명에서 읽은 운영일 > 제목의 월·요일
@@ -274,7 +271,8 @@ export default function App() {
           const names = tinfo.weekdays.map((d) => DAYCH[d]).join('·');
           disp.recurrence = tinfo.weekdays.length === 1 ? `${names}요일` : names;
         }
-        if (note?.time) disp = applyTime(disp, note.time); // 내가 고친 시간
+        const mySlots = noteSlots(note);
+        if (mySlots.length) disp = applyTimes(disp, mySlots); // 내가 고친 시간(하루 여러 회차면 여러 개)
         // 갈 수 없는 시간과 겹치는지 (상시 운영 시설은 "운영 시간"일 뿐이라 따지지 않음)
         const isStandingRow = editDays ? false : isStanding(c, tinfo);
         const timeRange = disp.timeKnown && disp.classStart && fmtTime(disp.classStart) !== '00:00'
@@ -316,7 +314,9 @@ export default function App() {
           chip: chipLabel(c, tinfo),
           distance: online ? null : distanceKm(HOME, { lat: c.lat, lng: c.lng }),
         };
-      }),
+  };
+  const enriched = useMemo(
+    () => courses.map((c) => buildRow(c, notes[c.id] ?? null)), // eslint-disable-line react-hooks/exhaustive-deps
     [courses, kids, nowMs, activeIds, now, todayYmd, notes, busyList, places, seen, bothKids],
   );
 
@@ -400,10 +400,18 @@ export default function App() {
     setToast({ kind: 'rounds', ids: others, text: `${row.chip} 회차만 남기고 ${others.length}개를 숨겼어요` });
   };
 
-  const saveNote = (id, note) =>
+  // 저장. groupIds 가 있으면 같은 프로그램의 다른 회차에도 "대상"(아이별 해당/아님)만 같이 적용
+  const saveNote = (id, note, groupIds = null) =>
     setSettings((s) => {
       const n = { ...(s.notes ?? {}) };
       if (note) n[id] = note; else delete n[id];
+      for (const gid of groupIds ?? []) {
+        if (gid === id) continue;
+        const cur = { ...(n[gid] ?? {}) };
+        if (note?.fit) cur.fit = note.fit; else delete cur.fit;
+        const cleaned = cleanNote(cur);
+        if (cleaned) n[gid] = cleaned; else delete n[gid];
+      }
       return { ...s, notes: n };
     });
 
@@ -628,11 +636,7 @@ export default function App() {
           </span>
           <span className="cal-row-title">{c.title}</span>
           <span className="cal-row-sub">{time && `${time} · `}{c.place}</span>
-          {e.note && (e.note.text || e.note.dates?.length > 0) && (
-            <span className="cal-row-note">
-              📝 {e.note.text}{e.note.dates?.length > 0 && ` ${e.note.text ? '· ' : ''}내 일정 ${e.note.dates.map(fmtMyDate).join(', ')}`}
-            </span>
-          )}
+          {e.note?.text && <span className="cal-row-note">📝 {e.note.text}</span>}
           <span className="cal-row-target">
             대상 {c.targetText || '원문 없음'}
             <KidPills kidMatches={e.kidMatches} />
@@ -642,8 +646,8 @@ export default function App() {
           </span>
         </a>
         {/* 링크 바깥에 둔 버튼들: 눌러도 예약 사이트로 넘어가지 않아요 */}
-        <button type="button" className="cal-note" aria-label="메모 · 내 날짜" title="메모 · 내 날짜" onClick={() => setNoteFor(c.id)}>
-          {e.note ? '📝' : '✎'}
+        <button type="button" className="cal-note" aria-label="고치기·메모" title="대상·날짜·시간 고치기, 메모" onClick={() => setNoteFor(c.id)}>
+          {e.note ? '✎•' : '✎'}
         </button>
         <button
           type="button"
@@ -941,7 +945,6 @@ export default function App() {
               ))}
               {!allDays && <button type="button" className="link-btn" onClick={() => setSettings({ ...settings, days: [] })}>전체</button>}
             </div>
-            {phoneCalendar && <p className="hint">달력 화면에서는 요일 필터가 적용되지 않아요. 목록에서 적용돼요.</p>}
           </div>
           <div className="sheet-checks">{checkLabels}</div>
         </Sheet>
@@ -950,6 +953,19 @@ export default function App() {
   );
 
   const noteRow = noteFor ? enriched.find((e) => e.course.id === noteFor) : null;
+  // 정보 고치기 화면에 줄 것: 내 날짜를 빼고 다시 계산한 "자동 날짜" 후보, 읽은 대상 문구, 같은 프로그램의 회차들
+  const noteExtra = noteRow
+    ? (() => {
+        const base = noteRow.note ? (({ dates, ...rest }) => rest)(noteRow.note) : null; // eslint-disable-line no-unused-vars
+        const r = buildRow(noteRow.orig, base && Object.keys(base).length ? base : null);
+        const o = occurrenceDates(r.course, r.daySet, todayYmd, r.tinfo);
+        return {
+          autoDates: !o.loose && o.dates.length > 0 && o.dates.length <= 40 ? o.dates : null,
+          targetInfo: { targetText: noteRow.orig.targetText, titleTarget: extractTitleTarget(noteRow.orig.title), detailTarget: noteRow.orig.detailTarget },
+          members: enriched.filter((e) => e.groupKey === noteRow.groupKey).map((e) => e.course.id),
+        };
+      })()
+    : null;
 
   return (
     <div className="app">
@@ -1107,13 +1123,13 @@ export default function App() {
         {isDesktop ? (
           <div className="pane-right">
             <section className="pane-cal" aria-label="달력">
-              <CalendarView rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
+              <CalendarView dayFilter={effDays} rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           </div>
         ) : (
           view === 'calendar' && (
             <section className="pane-cal-m" aria-label="달력">
-              <CalendarView rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
+              <CalendarView dayFilter={effDays} rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           )
         )}
@@ -1149,7 +1165,18 @@ export default function App() {
       {!isDesktop && phoneSheets}
 
       {noteRow && (
-        <NoteSheet key={noteRow.course.id} orig={noteRow.orig} note={noteRow.note} kids={kids} autoKidMatches={noteRow.autoKidMatches} onSave={(n) => saveNote(noteRow.course.id, n)} onClose={() => setNoteFor(null)} />
+        <NoteSheet
+          key={noteRow.course.id}
+          orig={noteRow.orig}
+          note={noteRow.note}
+          kids={kids}
+          autoKidMatches={noteRow.autoKidMatches}
+          autoDates={noteExtra.autoDates}
+          targetInfo={noteExtra.targetInfo}
+          groupCount={noteExtra.members.length}
+          onSave={(n, opts) => saveNote(noteRow.course.id, n, opts?.groupFit ? noteExtra.members : null)}
+          onClose={() => setNoteFor(null)}
+        />
       )}
 
       {placesOpen && (

@@ -3,7 +3,7 @@ import { fmtClassSchedule, fmtDate, fmtDateTime, fmtTime, daysUntil } from '../l
 import { CATEGORIES } from '../data/config';
 import { REASON_LABEL } from '../lib/audience';
 import { TRUST_TEXT, TRUST_TITLE } from '../lib/dateTrust';
-import { applyEvent, buildIcs, eventText, useEvents } from '../lib/ics';
+import { applyEvent, copyTextFor } from '../lib/ics';
 import { fmtMyDate } from '../lib/mydates';
 
 const STATUS = {
@@ -57,8 +57,8 @@ export default function CourseCard({
   const [open, setOpen] = useState(false);
   const [showSrc, setShowSrc] = useState(false);
   const [placeMenu, setPlaceMenu] = useState(false);
-  const [calOpen, setCalOpen] = useState(false);
-  const [calMsg, setCalMsg] = useState('');
+  const edited = !!(note && (note.fit || note.dates?.length || note.days?.length || note.slots?.length || note.time)); // 메모 말고 대상·날짜·시간을 고친 적이 있는가
+  const [copied, setCopied] = useState(''); // 방금 복사한 항목(버튼에 ✓ 표시)
   const [imgOk, setImgOk] = useState(true);
   const st = STATUS[status] ?? STATUS.closed;
   const startsIn = status === 'upcoming' && course.applyStart ? daysUntil(course.applyStart) : null;
@@ -75,25 +75,20 @@ export default function CourseCard({
       : '';
   const closed = course.closedList ?? [];
   const closedText = closed.length ? `${closed.slice(0, 4).map(fmtMyDate).join(' · ')}${closed.length > 4 ? ' …' : ''}` : '';
-  // 캘린더에 담을 수 있는 일정: 앞으로 올 접수 시작, 그리고 이 회차의 이용 일정
-  const calEvents = [];
-  const ae = applyEvent(course);
-  if (ae) calEvents.push({ key: 'apply', label: `접수 시작 ${fmtDate(course.applyStart)} ${fmtTime(course.applyStart)}`, events: [ae] });
-  const ue = useEvents(course, focusYmd);
-  if (ue.length) calEvents.push({ key: 'use', label: `이용 ${fmtMyDate(focusYmd)}`, events: ue });
-  const saveIcs = (name, text) => {
+  // 복사해서 캘린더 앱에 붙여넣을 일정: 앞으로 올 접수 시작, 그리고 이용 일정
+  const copyBtns = [];
+  if (applyEvent(course)) copyBtns.push({ key: 'apply', label: '접수 일정 복사', text: () => copyTextFor('apply', course) });
+  if (focusYmd || course.datesList?.length) copyBtns.push({ key: 'use', label: '이용 일정 복사', text: () => copyTextFor('use', course, { dates: course.datesList ?? [], focusYmd }) });
+  const doCopy = async (g) => {
+    const text = g.text();
     try {
-      const url = URL.createObjectURL(new Blob([text], { type: 'text/calendar;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
-      setCalMsg('파일을 받았어요. 다운로드 폴더의 .ics 파일을 캘린더 앱(또는 PC의 네이버캘린더)에서 가져오세요.');
-    } catch { setCalMsg('파일을 만들지 못했어요. \"정보 복사\"를 써 주세요.'); }
-  };
-  const copyText = async (text) => {
-    try { await navigator.clipboard.writeText(text); setCalMsg('복사했어요. 캘린더 앱의 새 일정에 붙여넣으세요.'); }
-    catch { setCalMsg(`자동 복사가 안 돼요. 아래 글을 직접 복사해 주세요:\n${text}`); }
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // 복사 권한이 없는 환경: 글을 보여 주고 직접 복사하게 함
+      window.prompt('아래 글을 복사해 캘린더에 붙여넣으세요', text);
+    }
+    setCopied(g.key);
+    setTimeout(() => setCopied(''), 2000);
   };
   const src = [...(course.detailSrc ?? []), ...(course.timeSlots?.length > 1 ? course.timeSlotSrc ?? [] : [])];
 
@@ -102,8 +97,8 @@ export default function CourseCard({
       <div className="card-top">
         <span className={`badge ${st.cls}`}>{st.label}</span>
         {onNote && (
-          <button type="button" className={`note-btn${note ? ' has' : ''}`} onClick={onNote} aria-label={note ? '메모 보기·수정' : '메모 추가'}>
-            📝 메모
+          <button type="button" className={`note-btn${note ? ' has' : ''}`} onClick={onNote} aria-label="대상·날짜·시간 고치기, 메모">
+            {note?.text ? '✎ 고치기 · 📝' : edited ? '✎ 고침' : '✎ 고치기'}
           </button>
         )}
         {isNew && <span className="badge new" title="최근 새로 올라온 프로그램이에요">NEW</span>}
@@ -173,12 +168,7 @@ export default function CourseCard({
         )}
       </div>
 
-      {note && (note.text || note.dates?.length > 0) && (
-        <p className="note-line">
-          📝 {note.text}
-          {note.dates?.length > 0 && <span className="note-dates">{note.text ? ' · ' : ''}내 일정 {note.dates.map(fmtMyDate).join(', ')}</span>}
-        </p>
-      )}
+      {note?.text && <p className="note-line">📝 {note.text}</p>}
 
       {chips}
 
@@ -240,7 +230,6 @@ export default function CourseCard({
               <span className="pill edit">✎ 내 수정: {edits.filter((x) => x !== '날짜').join('·')}</span>
             )}
             {needDetail && <span className="pill warn">요일은 상세 확인</span>}
-            {note?.dates?.length > 0 && <span className="pill">내 날짜 기준</span>}
             {trust && <span className={`pill trust ${trust.level}`} title={TRUST_TITLE[trust.level]}>{TRUST_TEXT[trust.level](trust.label)}</span>}
           </dd>
         </div>
@@ -261,27 +250,13 @@ export default function CourseCard({
         </details>
       )}
 
-      {calEvents.length > 0 && (
+      {copyBtns.length > 0 && (
         <div className="cal-add">
-          <button type="button" className="outline small" aria-expanded={calOpen} onClick={() => { setCalOpen((v) => !v); setCalMsg(''); }}>
-            📅 캘린더에 담기 {calOpen ? '▴' : '▾'}
-          </button>
-          {calOpen && (
-            <div className="cal-add-box">
-              {calEvents.map((g) => (
-                <div key={g.key} className="cal-line">
-                  <span className="cal-line-t">{g.label}</span>
-                  <button type="button" onClick={() => saveIcs(`seoul-kids-${course.id}-${g.key}.ics`, buildIcs(g.events))}>.ics 받기</button>
-                  <button type="button" onClick={() => copyText(g.events.map(eventText).join('\n\n'))}>정보 복사</button>
-                </div>
-              ))}
-              {calMsg && <p className="hint">{calMsg}</p>}
-              <p className="hint">
-                네이버캘린더는 <strong>PC 웹</strong>의 환경설정 → &quot;외부일정 가져오기&quot;에 .ics 파일을 올리면 폰 앱에도 같이 보여요(예전 안내 기준이라 메뉴 이름이 다를 수 있어요).
-                폰 앱이 .ics를 바로 가져오는지는 확인하지 못해서, 폰에서는 <strong>정보 복사</strong>를 눌러 일정에 붙여넣는 방법을 추천해요.
-              </p>
-            </div>
-          )}
+          {copyBtns.map((g) => (
+            <button key={g.key} type="button" className="outline small" onClick={() => doCopy(g)}>
+              {copied === g.key ? '✓ 복사했어요' : `📋 ${g.label}`}
+            </button>
+          ))}
         </div>
       )}
 

@@ -686,3 +686,17 @@ body { overflow-x: hidden; }
   .sum-pill.on { background: var(--ink); color: var(--bg); font-weight: 600; }
   .filters.toolbar.tb2 { gap: 8px; }
 }
+
+/* 요일 필터로 제외된 요일의 날짜 칸 */
+.cal-cell.off { opacity: .38; }
+
+/* 정보 고치기 화면 */
+.read-list { margin: 4px 0 8px; padding: 8px 10px; list-style: none; border-radius: 10px; background: var(--closed-bg); font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.read-list b { color: var(--muted); font-weight: 700; margin-right: 6px; }
+.group-fit { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 6px 0; }
+.date-checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; max-height: 220px; overflow: auto; }
+.dchip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: line-through; }
+.dchip.on { background: var(--open-bg); color: var(--open); border-color: transparent; text-decoration: none; font-weight: 600; }
+.date-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.date-add summary { cursor: pointer; color: var(--home); font-size: 13px; font-weight: 600; padding: 6px 0; }
+.time-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }

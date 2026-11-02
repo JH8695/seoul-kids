@@ -5,7 +5,7 @@
 // 상시 운영 시설은 \"운영 시간\"일 뿐이라 따지지 않아요(null).
 export function dateTrust({ dateSource, tinfo, course, standing }) {
   if (standing) return null;
-  if (dateSource === 'mine') return { level: 'sure', label: '내 날짜' };
+  if (dateSource === 'mine') return { level: 'sure', label: '내가 고른 날짜' };
   if (dateSource === 'edit') return { level: 'sure', label: '내가 고친 요일' };
   if (dateSource === 'title') return { level: 'sure', label: '제목에 적힌 날짜' };
   if (dateSource === 'detail') return { level: 'sure', label: '설명에서 읽은 날짜' };

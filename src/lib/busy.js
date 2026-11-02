@@ -32,8 +32,10 @@ const plus60 = (s) => {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
 
-export function classifyBusy({ busy, slots, range: rawRange, daySet }) {
+export function classifyBusy({ busy, slots: rawSlots, range: rawRange, daySet }) {
   if (!busy?.length) return 'ok';
+  // 시간대의 끝을 모르면(시작=끝) 한 시간짜리로 봄
+  const slots = rawSlots?.map((s) => (toMin(s.end) > toMin(s.start) ? s : { ...s, end: plus60(s.start) })) ?? null;
   // 끝 시각이 없거나 시작과 같으면(시각 하나만 아는 경우) 한 시간짜리로 봄
   const range = rawRange ? { start: rawRange.start, end: toMin(rawRange.end) > toMin(rawRange.start) ? rawRange.end : plus60(rawRange.start) } : null;
   const days = daySet ? [...daySet] : [0, 1, 2, 3, 4, 5, 6];
