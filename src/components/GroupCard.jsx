@@ -68,6 +68,7 @@ export default function GroupCard({ members, fav, onToggleFav, home, getActions,
       busy={sel.busy}
       trust={sel.trust}
       placeSt={sel.placeSt}
+      placeMemo={sel.placeMemo}
       onPlace={onPlace ? (st) => onPlace(sel, st) : undefined}
       isNew={newOf ? members.some(newOf) : false}
       dateSource={sel.dateSource}

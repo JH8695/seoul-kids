@@ -36,7 +36,7 @@ export function buildPlaceList({ rows, places = {}, q = '' }) {
     if (!r.placeKey) continue;
     let it = map.get(r.placeKey);
     if (!it) {
-      it = { key: r.placeKey, name: placeName(r.course), area: r.course.area || '', groups: new Map(), news: new Set(), state: places[r.placeKey]?.s ?? null };
+      it = { key: r.placeKey, name: placeName(r.course), area: r.course.area || '', groups: new Map(), news: new Set(), state: places[r.placeKey]?.s ?? null, memo: places[r.placeKey]?.memo ?? '' };
       map.set(r.placeKey, it);
     }
     const g = it.groups.get(r.groupKey) ?? { open: false, upcoming: false };
@@ -47,7 +47,7 @@ export function buildPlaceList({ rows, places = {}, q = '' }) {
   }
   // 지금은 올라온 게 없지만 내가 정해 둔 장소
   for (const [key, v] of Object.entries(places)) {
-    if (!map.has(key)) map.set(key, { key, name: v.n || key.split('|')[1] || key, area: key.split('|')[0] || '', groups: new Map(), news: new Set(), state: v.s });
+    if (!map.has(key)) map.set(key, { key, name: v.n || key.split('|')[1] || key, area: key.split('|')[0] || '', groups: new Map(), news: new Set(), state: v.s ?? null, memo: v.memo ?? '' });
   }
   const nq = norm(q);
   const items = [...map.values()]
@@ -55,7 +55,7 @@ export function buildPlaceList({ rows, places = {}, q = '' }) {
     .map((it) => {
       const gs = [...it.groups.values()];
       return {
-        key: it.key, name: it.name, area: it.area, state: it.state,
+        key: it.key, name: it.name, area: it.area, state: it.state, memo: it.memo,
         programs: it.groups.size,
         open: gs.filter((g) => g.open).length,
         upcoming: gs.filter((g) => g.upcoming && !g.open).length,

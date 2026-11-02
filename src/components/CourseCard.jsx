@@ -51,7 +51,7 @@ export function KidPills({ kidMatches }) {
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
   needDetail, online, standing, dateSource, chips, actions, note, onNote, busy,
-  placeSt, onPlace, isNew, trust,
+  placeSt, placeMemo, onPlace, isNew, trust,
   focusYmd, onGoCalendar, imageSchedule, edits = [],
 }) {
   const [open, setOpen] = useState(false);
@@ -132,7 +132,7 @@ export default function CourseCard({
                 type="button"
                 className={`place-btn${placeSt ? ` ${placeSt}` : ''}`}
                 aria-expanded={placeMenu}
-                title="눌러서 관심 장소·제외 장소로 정해요"
+                title="눌러서 관심 센터·제외 센터로 정해요"
                 onClick={() => setPlaceMenu((v) => !v)}
               >
                 {placeSt === 'fav' ? '★ ' : placeSt === 'hide' ? '✕ ' : ''}{course.place}
@@ -143,13 +143,14 @@ export default function CourseCard({
             {placeMenu && onPlace && (
               <span className="place-menu">
                 <button type="button" onClick={() => { onPlace(placeSt === 'fav' ? null : 'fav'); setPlaceMenu(false); }}>
-                  {placeSt === 'fav' ? '★ 관심 장소 해제' : '★ 관심 장소로'}
+                  {placeSt === 'fav' ? '★ 관심 센터 해제' : '★ 관심 센터로'}
                 </button>
                 <button type="button" onClick={() => { onPlace(placeSt === 'hide' ? null : 'hide'); setPlaceMenu(false); }}>
-                  {placeSt === 'hide' ? '제외 해제' : '✕ 이 장소 제외'}
+                  {placeSt === 'hide' ? '제외 해제' : '✕ 이 센터 제외'}
                 </button>
               </span>
             )}
+            {placeMemo && <span className="place-memo">📝 {placeMemo}</span>}
             <span className="meta-line">
               {course.area && <span>📍 {course.area}</span>}
               {distance != null && <span title={`${home.name} 기준 직선거리(대략)`}>직선 약 {distance.toFixed(1)}km</span>}

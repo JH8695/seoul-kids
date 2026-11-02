@@ -48,4 +48,15 @@ assert.ok(!r.normal.flatMap((b) => b.items).some((i) => ['대모산숲', '쌍용
 // 이름 검색(띄어쓰기 무시)
 r = buildPlaceList({ rows, places: {}, q: '새활용 플라자' });
 assert.deepEqual(r.normal.flatMap((b) => b.items).map((i) => i.name), ['서울새활용플라자']);
+// 센터 메모는 목록 항목에 붙음 (관심·제외가 아니어도, 프로그램이 있는 센터면 일반 목록에서 보임)
+{
+  const key = keyOf('서초구', '서울새활용플라자');
+  const r2 = buildPlaceList({ rows, places: { [key]: { n: '서울새활용플라자', memo: '지하철 25분' } } });
+  const it = r2.normal.flatMap((b) => b.items).find((i) => i.name === '서울새활용플라자');
+  assert.equal(it.memo, '지하철 25분');
+  assert.equal(it.state, null);
+  // 지금 올라온 프로그램이 없고 메모만 있는 센터는 일반 목록에 안 나옴
+  const r3 = buildPlaceList({ rows: [], places: { [keyOf('은평구', '없어진센터')]: { n: '없어진센터', memo: 'x' } } });
+  assert.equal(r3.normal.length + r3.fav.length + r3.hide.length, 0);
+}
 console.log('placelist.test.mjs OK');

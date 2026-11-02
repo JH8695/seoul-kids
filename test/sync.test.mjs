@@ -97,7 +97,8 @@ const R = (over = {}, stamps = {}) => ({ data: pickSync(S(over)), stamps });
   assert.deepEqual(r.values.favs, ['z']);
 }
 
-assert.equal(SYNC_KEYS.length, 12);
+assert.equal(SYNC_KEYS.length, 13);
+assert.ok(SYNC_KEYS.includes('scope')); // 선택한 구 / 서울 전체 도 기기끼리 같이 씀
 assert.ok(SYNC_KEYS.includes('busy')); // 갈 수 없는 시간도 폰·PC 가 같이 씀
 
 // 갈 수 없는 시간: 서버에 아직 없던 기존 문서는 내 기기 값을 유지, 평소엔 나중에 고친 쪽
@@ -117,5 +118,13 @@ assert.ok(SYNC_KEYS.includes('busy')); // 갈 수 없는 시간도 폰·PC 가 �
   assert.equal(m.places.b.s, 'hide');
   assert.deepEqual(m.searches.pinned, ['유아숲', '숲']);
   assert.equal(m.searches.recent[0], '방배');
+}
+// 보기 범위(선택한 구 / 서울 전체): 아이·구·요일 설정과 같은 방식 — 처음 연결하면 서버(계정) 쪽을 따르고, 'local' 이면 내 기기 값. 이상한 값은 near
+{
+  assert.equal(mergeUnion({ scope: 'all' }, { scope: 'near' }).scope, 'near');
+  assert.equal(mergeUnion({ scope: 'all' }, { scope: 'near' }, { prefs: 'local' }).scope, 'all');
+  assert.equal(mergeUnion({ scope: 'near' }, { scope: 'all' }).scope, 'all');
+  assert.equal(mergeUnion({ scope: 'all' }, {}).scope, 'all'); // 서버에 값이 없으면 내 기기 값
+  assert.equal(mergeUnion({ scope: 'x' }, {}).scope, 'near');
 }
 console.log('sync.test.mjs OK');

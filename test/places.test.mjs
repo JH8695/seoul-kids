@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { placeKeyOf, placeName, cleanPlaces, withPlace, placeState, listPlaces } from '../src/lib/places.js';
+import { placeKeyOf, placeName, cleanPlaces, withPlace, withPlaceMemo, placeMemoOf, placeState, listPlaces } from '../src/lib/places.js';
 import { cleanSearches, addRecent, removeTerm, togglePin } from '../src/lib/searches.js';
 import { updateSeen, isNewId, NEW_DAYS } from '../src/lib/firstSeen.js';
 
@@ -60,4 +60,22 @@ assert.equal(isNewId(seen, 'c', t1 + (NEW_DAYS + 1) * 86400000), false); // 3일
 assert.equal(updateSeen(seen, ['a', 'b', 'c'], t1 + 1000), seen); // 변화 없으면 같은 객체(불필요한 저장 방지)
 // 목록이 비어 읽힌 날(수집 실패)에는 기록을 지우지 않음
 assert.equal(updateSeen(seen, [], t1 + 99 * 86400000), seen);
+// 센터 메모: 관심·제외와 따로 저장(해제해도 메모는 남음), 비우면 지움
+{
+  let m = withPlaceMemo({}, 'k', '센터', '  지하철 25분 · 자차 15분 ');
+  assert.equal(placeMemoOf(m, 'k'), '지하철 25분 · 자차 15분');
+  assert.equal(placeState(m, 'k'), null); // 메모만 있어도 관심·제외는 아님
+  assert.deepEqual(listPlaces(m, 'fav'), []);
+  m = withPlace(m, 'k', '센터', 'fav');
+  assert.equal(placeState(m, 'k'), 'fav');
+  assert.equal(placeMemoOf(m, 'k'), '지하철 25분 · 자차 15분'); // 관심으로 정해도 메모 유지
+  m = withPlace(m, 'k', '센터', null);
+  assert.deepEqual(m, { k: { n: '센터', memo: '지하철 25분 · 자차 15분' } }); // 해제해도 메모는 남음
+  m = withPlaceMemo(withPlace({}, 'k', '센터', 'hide'), 'k', '센터', '메모');
+  m = withPlaceMemo(m, 'k', '센터', ''); // 메모만 지우면 제외 상태는 그대로
+  assert.deepEqual(m, { k: { s: 'hide', n: '센터' } });
+  assert.deepEqual(withPlaceMemo({ k: { n: '센터', memo: 'x' } }, 'k', '센터', ''), {}); // 둘 다 없으면 항목 삭제
+  assert.equal(placeMemoOf(withPlaceMemo({}, 'k', 'n', 'a'.repeat(300)), 'k').length, 200); // 200자까지
+  assert.deepEqual(cleanPlaces({ a: { n: 'A', memo: '메모만' }, b: { s: 'x', n: 'B' }, c: { s: 'fav', n: 'C', memo: '  ' } }), { a: { n: 'A', memo: '메모만' }, c: { s: 'fav', n: 'C' } });
+}
 console.log('places.test.mjs OK');

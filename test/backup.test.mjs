@@ -47,4 +47,9 @@ console.log('backup.test.mjs OK');
   assert.deepEqual(bad.settings.searches, { recent: ['1', 'ok'], pinned: [] });
   assert.ok(parseImport(JSON.stringify({ app: 'seoul-kids', v: 1, settings: { busy: 'x' } })).error);
 }
+{
+  const r = parseImport(buildExport({ kids: [{ id: 'k1', label: '큰아이', birthYear: 2017 }], scope: 'all' }));
+  assert.equal(r.settings.scope, 'all');
+  assert.equal(parseImport(JSON.stringify({ app: 'seoul-kids', v: 1, settings: { scope: 'zzz' } })).settings.scope, 'near');
+}
 console.log('backup extra OK');

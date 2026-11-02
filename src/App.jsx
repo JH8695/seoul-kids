@@ -7,7 +7,7 @@ import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
 import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
 import { classifyBusy, cleanBusy } from './lib/busy';
-import { cleanPlaces, listPlaces, placeKeyOf, placeName, placeState, withPlace } from './lib/places';
+import { cleanPlaces, listPlaces, placeKeyOf, placeMemoOf, placeName, placeState, withPlace, withPlaceMemo } from './lib/places';
 import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
 import { isNewId, updateSeen } from './lib/firstSeen';
 import { dateTrust } from './lib/dateTrust';
@@ -70,7 +70,6 @@ export default function App() {
   const isDesktop = useMedia('(min-width: 900px)');
 
   const [tab, setTab] = useState('all');
-  const [scope, setScope] = useState('near'); // near | all
   const [sort, setSort] = useState('area'); // 항상 "가까운 구 순"으로 시작
   const [view, setView] = useState('list'); // 폰 하단 탭: calendar | list (처음엔 목록)
   const [cats, setCats] = useState([]);
@@ -88,7 +87,7 @@ export default function App() {
     try { localStorage.setItem(FILTERS_KEY, v ? '0' : '1'); } catch { /* 저장 불가 환경 */ }
     return !v;
   });
-  const [placesOpen, setPlacesOpen] = useState(false); // 업체(장소) 목록 페이지
+  const [placesOpen, setPlacesOpen] = useState(false); // 센터 목록 페이지
   const [placeFocus, setPlaceFocus] = useState(null); // { key, name }: 이 장소의 프로그램만 보기
   const [showHidden, setShowHidden] = useState(false); // 숨긴 프로그램만 보기(되살리기용)
   const [optionsOpen, setOptionsOpen] = useState(false); // PC "옵션" 창
@@ -153,7 +152,8 @@ export default function App() {
 
   // 샘플일 때는 샘플이 도심 쪽 기관 위주라서 처음부터 서울 전체로 보여줌
   // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
-  useEffect(() => { if (!loading && meta.isSample) setScope('all'); }, [loading, meta.isSample]);
+  const scope = !loading && meta.isSample ? 'all' : settings.scope === 'all' ? 'all' : 'near'; // 마지막으로 고른 것을 기억(near | all)
+  const setScope = (v) => setSettings((s) => ({ ...s, scope: v }));
 
   // 합치기 링크(#import=...)로 열었으면: 이 기기의 찜·숨김·메모에 합침 (지금 있는 내용은 지우지 않음)
   useEffect(() => {
@@ -308,6 +308,7 @@ export default function App() {
           trust: dateTrust({ dateSource, tinfo, course: c, standing: isStandingRow }),
           placeKey: placeKeyOf(c),
           placeSt: placeState(places, placeKeyOf(c)),
+          placeMemo: placeMemoOf(places, placeKeyOf(c)),
           isNew: isNewId(seen, c.id, nowMs),
           needDetail: !daySet && !tinfo.dates && !!multiDay,
           groupKey: groupKeyOf(c),
@@ -367,8 +368,10 @@ export default function App() {
     if (!key) return;
     const prev = placeState(places, key);
     setSettings({ ...settings, places: withPlace(places, key, name, state) });
-    if (state === 'hide') setToast({ kind: 'place', key, name, prev, text: `이 장소를 제외했어요 · ${name}` });
+    if (state === 'hide') setToast({ kind: 'place', key, name, prev, text: `이 센터를 제외했어요 · ${name}` });
   };
+  // 센터 메모(예: 지하철·자차 소요 시간). 센터 목록에서 적고, 카드의 센터 이름 아래에도 보여줌
+  const setPlaceMemo = (key, name, memo) => setSettings((s) => ({ ...s, places: withPlaceMemo(cleanPlaces(s.places), key, name, memo) }));
   const setPlaceFor = (row, state) => applyPlace(row.placeKey, placeName(row.course), state);
   // 장소 목록에서 이름을 누르면: 그 장소의 프로그램만 목록에 보여줌
   const pickPlace = (it) => {
@@ -601,6 +604,7 @@ export default function App() {
       note={e.note}
       onNote={() => setNoteFor(e.course.id)}
       placeSt={e.placeSt}
+      placeMemo={e.placeMemo}
       onPlace={(st) => setPlaceFor(e, st)}
       isNew={newShown(e)}
       trust={e.trust}
@@ -677,8 +681,8 @@ export default function App() {
       <input
         type="search"
         className="search"
-        placeholder={isDesktop ? '프로그램명·장소 검색' : '프로그램·장소 검색'}
-        aria-label="프로그램명·장소 검색"
+        placeholder={isDesktop ? '프로그램명·센터 검색' : '프로그램·센터 검색'}
+        aria-label="프로그램명·센터 검색"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setSearchFocus(true)}
@@ -715,11 +719,11 @@ export default function App() {
       type="button"
       className={`fav-toggle place${placeOnly ? ' on' : ''}`}
       aria-pressed={placeOnly}
-      aria-label={`관심 장소 ${favPlaces.length}곳의 프로그램만 보기`}
-      title="관심 장소(★)의 프로그램만 보기"
+      aria-label={`관심 센터 ${favPlaces.length}곳의 프로그램만 보기`}
+      title="관심 센터(★)의 프로그램만 보기"
       onClick={() => setPlaceOnly((v) => !v)}
     >
-      {placeOnly ? '★' : '☆'} {isDesktop ? '관심 장소 ' : ''}{favPlaces.length}
+      {placeOnly ? '★' : '☆'} {isDesktop ? '관심 센터 ' : ''}{favPlaces.length}
     </button>
   ) : null;
   const tabsEl = (
@@ -772,7 +776,7 @@ export default function App() {
     </div>
   );
   const placesBtn = (
-    <button type="button" className={`fbtn${placeFocus ? ' on' : ''}`} onClick={() => setPlacesOpen(true)}>📍 장소 목록</button>
+    <button type="button" className={`fbtn${placeFocus ? ' on' : ''}`} onClick={() => setPlacesOpen(true)}>📍 센터 목록</button>
   );
   const scopeSeg = (
     <div className="seg" role="group" aria-label="지역">
@@ -1143,7 +1147,7 @@ export default function App() {
         <div className="viewbar">
           <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')}>달력</button>
           <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>목록</button>
-          <button className={placesOpen || placeFocus ? 'on' : ''} onClick={() => setPlacesOpen(true)}>장소</button>
+          <button className={placesOpen || placeFocus ? 'on' : ''} onClick={() => setPlacesOpen(true)}>센터</button>
         </div>
       )}
 
@@ -1186,6 +1190,7 @@ export default function App() {
           scopeLabel={scope === 'near' ? `선택한 구(${settings.areas.length}곳)` : '서울 전체'}
           onPick={pickPlace}
           onSetPlace={(it, st) => applyPlace(it.key, it.name, st)}
+          onSetMemo={(it, text) => setPlaceMemo(it.key, it.name, text)}
           onClose={() => setPlacesOpen(false)}
         />
       )}
