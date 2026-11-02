@@ -7,7 +7,7 @@ import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
 import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
 import { classifyBusy, cleanBusy } from './lib/busy';
-import { cleanPlaces, listPlaces, placeKeyOf, placeMemoOf, placeName, placeState, withPlace, withPlaceMemo } from './lib/places';
+import { cleanPlaces, listPlaces, placeKeyOf, placeMemoOf, placeName, placeState, shortPlaceName, withPlace, withPlaceMemo } from './lib/places';
 import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
 import { isNewId, updateSeen } from './lib/firstSeen';
 import { cleanWords, hitWords } from './lib/hideWords';
@@ -157,6 +157,7 @@ export default function App() {
   // (불러오는 동안 잠깐 보이는 샘플 때문에 바뀌지 않도록, 불러오기가 끝난 뒤에만 판단)
   const scope = !loading && meta.isSample ? 'all' : settings.scope === 'all' ? 'all' : 'near'; // 마지막으로 고른 것을 기억(near | all)
   const setScope = (v) => setSettings((s) => ({ ...s, scope: v }));
+  const placesScope = settings.placesScope ?? (scope === 'all' ? 'all' : 'mine'); // 센터 목록의 구 범위: all | mine(내가 선택한 구) | 구 이름
 
   // 합치기 링크(#import=...)로 열었으면: 이 기기의 찜·숨김·메모에 합침 (지금 있는 내용은 지우지 않음)
   useEffect(() => {
@@ -375,7 +376,7 @@ export default function App() {
     if (!key) return;
     const prev = placeState(places, key);
     setSettings({ ...settings, places: withPlace(places, key, name, state) });
-    if (state === 'hide') setToast({ kind: 'place', key, name, prev, text: `이 센터를 제외했어요 · ${name}` });
+    if (state === 'hide') setToast({ kind: 'place', key, name, prev, text: `이 센터를 제외했어요 · ${shortPlaceName(name)}` });
   };
   // 센터 메모(예: 지하철·자차 소요 시간). 센터 목록에서 적고, 카드의 센터 이름 아래에도 보여줌
   const setPlaceMemo = (key, name, memo) => setSettings((s) => ({ ...s, places: withPlaceMemo(cleanPlaces(s.places), key, name, memo) }));
@@ -571,16 +572,15 @@ export default function App() {
     return m;
   }, [enriched]);
 
-  // 장소 페이지에 보여줄 회차: 지금 목록 조건(구·대상·접수상태)과 같되, 장소·요일 같은 세부 조건은 뺌
+  // 센터 목록에 줄 회차: 대상·접수상태 조건은 메인과 같고, 구 범위는 센터 목록 화면에서 따로 고름
   const placeRows = useMemo(
     () => enriched.filter((e) => {
       if (isOver(e) || hiddenSet.has(e.groupKey) || hiddenRoundSet.has(e.course.id) || e.busy === 'blocked') return false;
       if (e.hideHits.length > 0 && !isFavRow(e)) return false; // 숨길 단어
       if (!showAllTargets && (e.audience.kind === 'no' || (e.audience.kind === 'open' && !includeOpen))) return false;
-      if (!(e.status === 'open' || e.status === 'upcoming' || showClosed)) return false;
-      return !(scope === 'near' && e.course.area && !settings.areas.includes(e.course.area));
+      return e.status === 'open' || e.status === 'upcoming' || showClosed;
     }), // eslint-disable-line react-hooks/exhaustive-deps
-    [enriched, hiddenSet, hiddenRoundSet, showAllTargets, includeOpen, showClosed, scope, settings.areas, todayYmd],
+    [enriched, hiddenSet, hiddenRoundSet, showAllTargets, includeOpen, showClosed, todayYmd],
   );
 
   const centerItems = useMemo(() => {
@@ -1203,7 +1203,9 @@ export default function App() {
         <PlacesPage
           rows={placeRows}
           places={places}
-          scopeLabel={scope === 'near' ? `선택한 구(${settings.areas.length}곳)` : '서울 전체'}
+          myAreas={settings.areas}
+          scopeValue={placesScope}
+          onScope={(v) => setSettings((s) => ({ ...s, placesScope: v }))}
           onPick={pickPlace}
           onSetPlace={(it, st) => applyPlace(it.key, it.name, st)}
           onSetMemo={(it, text) => setPlaceMemo(it.key, it.name, text)}
@@ -1213,7 +1215,7 @@ export default function App() {
 
       {centerOpen && (
         <CenterPopup
-          name={centerOpen.name}
+          name={shortPlaceName(centerOpen.name)}
           area={centerItems[0]?.members[0]?.course.area ?? ''}
           meta={places[centerOpen.key] ?? null}
           items={centerItems}

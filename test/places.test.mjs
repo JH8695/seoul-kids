@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { placeKeyOf, placeName, cleanPlaces, withPlace, withPlaceMemo, placeMemoOf, placeState, listPlaces } from '../src/lib/places.js';
+import { placeKeyOf, placeName, shortPlaceName, cleanPlaces, withPlace, withPlaceMemo, placeMemoOf, placeState, listPlaces } from '../src/lib/places.js';
 import { cleanSearches, addRecent, removeTerm, togglePin } from '../src/lib/searches.js';
 import { updateSeen, isNewId, NEW_DAYS } from '../src/lib/firstSeen.js';
 
@@ -78,4 +78,14 @@ assert.equal(updateSeen(seen, [], t1 + 99 * 86400000), seen);
   assert.equal(placeMemoOf(withPlaceMemo({}, 'k', 'n', 'a'.repeat(300)), 'k').length, 200); // 200자까지
   assert.deepEqual(cleanPlaces({ a: { n: 'A', memo: '메모만' }, b: { s: 'x', n: 'B' }, c: { s: 'fav', n: 'C', memo: '  ' } }), { a: { n: 'A', memo: '메모만' }, c: { s: 'fav', n: 'C' } });
 }
+// 화면용 짧은 이름: "서울특별시"와 "○○구"를 뺌 (센터 열쇠·저장 이름은 그대로)
+assert.equal(shortPlaceName('서울특별시 동대문구 답십리로66길 3 서울형 키즈카페 장안1동점 (장안동)'), '답십리로66길 3 서울형 키즈카페 장안1동점 (장안동)');
+assert.equal(shortPlaceName('서울특별시 동작구 노량진로 10 서울가족플라자 지하2층 (대방동)'), '노량진로 10 서울가족플라자 지하2층 (대방동)');
+assert.equal(shortPlaceName('서울시 도봉구 해등로4길 38 초안산생태공원 내 위치 (창동)'), '해등로4길 38 초안산생태공원 내 위치 (창동)');
+assert.equal(shortPlaceName('서울특별시 어린이대공원'), '어린이대공원'); // 구가 없으면 서울특별시만
+assert.equal(shortPlaceName('강남구립도서관'), '강남구립도서관'); // 구 뒤에 공백이 없으면 이름의 일부
+assert.equal(shortPlaceName('남산 팔각정'), '남산 팔각정');
+assert.equal(shortPlaceName('서울특별시'), '서울특별시'); // 다 지우면 비니까 그대로
+assert.equal(shortPlaceName(shortPlaceName('서울특별시 동대문구 답십리로66길 3')), '답십리로66길 3'); // 두 번 적용해도 같음
+assert.equal(shortPlaceName(null), '');
 console.log('places.test.mjs OK');

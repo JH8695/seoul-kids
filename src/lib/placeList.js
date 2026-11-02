@@ -1,5 +1,5 @@
 // 장소 페이지(가나다 순)용 목록 만들기. 화면과 상관없는 순수 함수예요.
-import { placeName } from './places.js';
+import { placeName, shortPlaceName } from './places.js';
 
 const CHO = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
 const BASE = { ㄲ: 'ㄱ', ㄸ: 'ㄷ', ㅃ: 'ㅂ', ㅆ: 'ㅅ', ㅉ: 'ㅈ' }; // 쌍자음은 같은 칸으로
@@ -24,19 +24,21 @@ const norm = (x) => String(x ?? '').replace(/\s+/g, '').toLowerCase();
 /**
  * @param rows   [{ placeKey, course:{place, area}, groupKey, status, isNew }] — 지금 보여줄 회차들
  * @param places 설정의 관심·제외 장소 { 열쇠: { s, n } }
- * @param q      이름 검색어
+ * @param q      이름 검색어 (짧은 이름·원래 이름·구 어디에 있어도 찾음)
+ * @param areaOk 구 범위: (구 이름) => boolean. 관심·제외로 정해 둔 센터도 같은 범위로 거름
  * @returns { fav: Item[], hide: Item[], normal: [{ initial, items }] }
  *   Item = { key, name, area, programs, open, upcoming, news, state }
  *   - 관심(★) 장소는 지금 올라온 프로그램이 없어도 항상 목록에 있음
  *   - 제외(✕) 장소도 마찬가지(되돌릴 수 있게)
  */
-export function buildPlaceList({ rows, places = {}, q = '' }) {
+export function buildPlaceList({ rows, places = {}, q = '', areaOk = () => true }) {
   const map = new Map();
   for (const r of rows) {
     if (!r.placeKey) continue;
     let it = map.get(r.placeKey);
     if (!it) {
-      it = { key: r.placeKey, name: placeName(r.course), area: r.course.area || '', groups: new Map(), news: new Set(), state: places[r.placeKey]?.s ?? null, memo: places[r.placeKey]?.memo ?? '' };
+      if (!areaOk(r.course.area || '')) continue;
+      it = { key: r.placeKey, name: shortPlaceName(placeName(r.course)), full: placeName(r.course), area: r.course.area || '', groups: new Map(), news: new Set(), state: places[r.placeKey]?.s ?? null, memo: places[r.placeKey]?.memo ?? '' };
       map.set(r.placeKey, it);
     }
     const g = it.groups.get(r.groupKey) ?? { open: false, upcoming: false };
@@ -47,11 +49,11 @@ export function buildPlaceList({ rows, places = {}, q = '' }) {
   }
   // 지금은 올라온 게 없지만 내가 정해 둔 장소
   for (const [key, v] of Object.entries(places)) {
-    if (!map.has(key)) map.set(key, { key, name: v.n || key.split('|')[1] || key, area: key.split('|')[0] || '', groups: new Map(), news: new Set(), state: v.s ?? null, memo: v.memo ?? '' });
+    if (!map.has(key) && areaOk(key.split('|')[0] || '')) map.set(key, { key, name: shortPlaceName(v.n || key.split('|')[1] || key), full: v.n || key.split('|')[1] || key, area: key.split('|')[0] || '', groups: new Map(), news: new Set(), state: v.s ?? null, memo: v.memo ?? '' });
   }
   const nq = norm(q);
   const items = [...map.values()]
-    .filter((it) => !nq || norm(it.name).includes(nq))
+    .filter((it) => !nq || norm(`${it.name} ${it.full} ${it.area}`).includes(nq))
     .map((it) => {
       const gs = [...it.groups.values()];
       return {

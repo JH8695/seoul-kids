@@ -59,4 +59,30 @@ assert.deepEqual(r.normal.flatMap((b) => b.items).map((i) => i.name), ['서울�
   const r3 = buildPlaceList({ rows: [], places: { [keyOf('은평구', '없어진센터')]: { n: '없어진센터', memo: 'x' } } });
   assert.equal(r3.normal.length + r3.fav.length + r3.hide.length, 0);
 }
+// 주소 이름: "서울특별시 ○○구"를 뺀 이름으로 정렬·초성 (전부 ㅅ 하나로 몰리지 않음)
+{
+  const addr = (area, place, g) => row(area, place, g, 'open');
+  const rows2 = [
+    addr('동대문구', '서울특별시 동대문구 답십리로66길 3 서울형 키즈카페 장안1동점 (장안동)', 'a'),
+    addr('동작구', '서울특별시 동작구 노량진로 10 서울가족플라자 지하2층 (대방동)', 'b'),
+    addr('도봉구', '서울특별시 도봉구 해등로4길 38 초안산생태공원 내 위치 (창동)', 'c'),
+    addr('동작구', '서울특별시 동작구 상도로47아길 44-1 1층 (상도동)', 'd'),
+  ];
+  const r4 = buildPlaceList({ rows: rows2, places: {} });
+  assert.deepEqual(r4.normal.map((b) => b.initial), ['ㄴ', 'ㄷ', 'ㅅ', 'ㅎ']); // 노량진로 / 답십리로 / 상도로 / 해등로
+  assert.equal(r4.normal[1].items[0].name, '답십리로66길 3 서울형 키즈카페 장안1동점 (장안동)');
+  // 원래 이름(서울특별시…)·구 이름으로도 검색됨
+  assert.equal(buildPlaceList({ rows: rows2, places: {}, q: '서울특별시 동작구' }).normal.flatMap((b) => b.items).length, 2);
+  assert.equal(buildPlaceList({ rows: rows2, places: {}, q: '서울형키즈카페' }).normal.flatMap((b) => b.items).length, 1);
+  assert.equal(buildPlaceList({ rows: rows2, places: {}, q: '도봉구' }).normal.flatMap((b) => b.items).length, 1);
+  // 구 범위: 고른 구만 (관심·제외로 정해 둔 센터도 같은 범위로 거름)
+  const only = (a) => a === '동작구';
+  const r5 = buildPlaceList({ rows: rows2, places: {}, areaOk: only });
+  assert.deepEqual(r5.normal.flatMap((b) => b.items).map((i) => i.area), ['동작구', '동작구']);
+  const favKey = keyOf('도봉구', '서울특별시 도봉구 해등로4길 38 초안산생태공원 내 위치 (창동)');
+  const r6 = buildPlaceList({ rows: [], places: { [favKey]: { s: 'fav', n: '서울특별시 도봉구 해등로4길 38 초안산생태공원 내 위치 (창동)' } }, areaOk: only });
+  assert.equal(r6.fav.length, 0); // 다른 구의 관심 센터는 이 범위에서 안 보임
+  const r7 = buildPlaceList({ rows: [], places: { [favKey]: { s: 'fav', n: '서울특별시 도봉구 해등로4길 38 초안산생태공원 내 위치 (창동)' } } });
+  assert.equal(r7.fav[0].name, '해등로4길 38 초안산생태공원 내 위치 (창동)');
+}
 console.log('placelist.test.mjs OK');

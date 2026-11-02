@@ -3,12 +3,29 @@ import { buildPlaceList } from '../lib/placeList';
 
 // 센터 목록 페이지: 가나다 순 목록. ★ 관심 센터는 항상 맨 위, ✕ 제외 센터는 맨 아래(접힘).
 // 센터 이름을 누르면 그 센터의 프로그램만 목록에 보여요. 📝 로 센터마다 메모(지하철·자차 소요 시간 등)를 남겨요.
-export default function PlacesPage({ rows, places, scopeLabel, onPick, onSetPlace, onSetMemo, onClose }) {
+export default function PlacesPage({ rows, places, myAreas = [], scopeValue = 'all', onScope, onPick, onSetPlace, onSetMemo, onClose }) {
   const [q, setQ] = useState('');
   const [editKey, setEditKey] = useState(null);
   const [draft, setDraft] = useState('');
   const bodyRef = useRef(null);
-  const { fav, hide, normal } = useMemo(() => buildPlaceList({ rows, places, q }), [rows, places, q]);
+  // 구 범위: all(서울 전체) | mine(내가 선택한 구) | 구 이름
+  const areaOk = useMemo(
+    () => (scopeValue === 'all' ? () => true : scopeValue === 'mine' ? (a) => myAreas.includes(a) : (a) => a === scopeValue),
+    [scopeValue, myAreas],
+  );
+  // 구별 센터 수 (드롭다운에 보여줌): 지금 올라온 프로그램이 있는 센터 기준
+  const areaCounts = useMemo(() => {
+    const m = new Map();
+    rows.forEach((r) => {
+      if (!r.placeKey || !r.course.area) return;
+      if (!m.has(r.course.area)) m.set(r.course.area, new Set());
+      m.get(r.course.area).add(r.placeKey);
+    });
+    if (scopeValue !== 'all' && scopeValue !== 'mine' && !m.has(scopeValue)) m.set(scopeValue, new Set());
+    return [...m.entries()].map(([name, set]) => ({ name, n: set.size })).sort((x, y) => x.name.localeCompare(y.name, 'ko'));
+  }, [rows, scopeValue]);
+  const totalCenters = useMemo(() => new Set(rows.map((r) => r.placeKey).filter(Boolean)).size, [rows]);
+  const { fav, hide, normal } = useMemo(() => buildPlaceList({ rows, places, q, areaOk }), [rows, places, q, areaOk]);
   const jump = (initial) => bodyRef.current?.querySelector(`[data-initial="${initial}"]`)?.scrollIntoView({ block: 'start' });
   const startEdit = (it) => { setEditKey(editKey === it.key ? null : it.key); setDraft(it.memo || ''); };
   const saveMemo = (it, text) => { onSetMemo(it, text); setEditKey(null); };
@@ -90,8 +107,15 @@ export default function PlacesPage({ rows, places, scopeLabel, onPick, onSetPlac
         <h2>센터 목록</h2>
         <button type="button" className="outline" onClick={onClose}>닫기</button>
       </header>
-      <input type="search" className="search" placeholder="센터 이름 검색" aria-label="센터 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-      <p className="hint">{scopeLabel} · 이름을 누르면 그 센터의 프로그램만 보여요. 📝 메모(지하철·자차 시간 등), ☆ 관심(맨 위 고정), ✕ 제외예요.</p>
+      <div className="pl-filter">
+        <select value={scopeValue} onChange={(e) => onScope?.(e.target.value)} aria-label="구 선택">
+          <option value="all">서울 전체 ({totalCenters}곳)</option>
+          <option value="mine">내가 선택한 구 ({myAreas.length}곳)</option>
+          {areaCounts.map((a) => (<option key={a.name} value={a.name}>{a.name} ({a.n})</option>))}
+        </select>
+        <input type="search" className="search" placeholder="센터 이름 검색" aria-label="센터 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <p className="hint">이름을 누르면 그 센터의 프로그램이 팝업으로 떠요. 📝 메모(지하철·자차 시간 등), ☆ 관심(맨 위 고정), ✕ 제외예요. 센터 이름 앞의 &quot;서울특별시 ○○구&quot;는 줄여서 보여줘요.</p>
       {normal.length > 0 && (
         <nav className="pl-jump" aria-label="초성으로 건너뛰기">
           {normal.map((b) => (<button key={b.initial} type="button" onClick={() => jump(b.initial)}>{b.initial}</button>))}

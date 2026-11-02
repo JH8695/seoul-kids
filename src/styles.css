@@ -724,3 +724,14 @@ body { overflow-x: hidden; }
 .cp-list { display: flex; flex-direction: column; gap: 10px; }
 .hw-n { color: var(--muted); }
 .cp-head > button { flex: 0 0 auto; white-space: nowrap; }
+
+/* 센터 목록: 구 선택 + 검색 */
+.pl-filter { display: flex; gap: 8px; align-items: stretch; }
+.pl-filter select { flex: 0 0 auto; max-width: 48%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.pl-filter .search { flex: 1 1 auto; min-width: 0; width: auto; }
+
+/* 센터 목록: 결과가 줄어도 검색창·구 선택이 남는 세로 공간을 차지해 커지지 않게 (세로로 쌓인 칸은 제 높이를 유지) */
+.places-page > * { flex-shrink: 0; }
+.pl-filter { flex: 0 0 auto; }
+.pl-filter .search { flex: 1 1 auto; height: auto; align-self: stretch; }
+.places-page > .search { flex: 0 0 auto; }

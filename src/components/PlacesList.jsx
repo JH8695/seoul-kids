@@ -1,4 +1,4 @@
-import { cleanPlaces, listPlaces, withPlace } from '../lib/places';
+import { cleanPlaces, listPlaces, shortPlaceName, withPlace } from '../lib/places';
 
 // 설정 창: 관심(★)·제외(✕) 센터 목록. 해제는 여기서, 정하는 건 카드의 센터 이름을 눌러서.
 export default function PlacesList({ settings, setSettings }) {
@@ -13,8 +13,8 @@ export default function PlacesList({ settings, setSettings }) {
         <div className="places-chips">
           {list.map((p) => (
             <span key={p.key} className="place-chip">
-              {p.name}
-              <button type="button" aria-label={`${p.name} 해제`} onClick={() => clear(p.key)}>✕</button>
+              {shortPlaceName(p.name)}
+              <button type="button" aria-label={`${shortPlaceName(p.name)} 해제`} onClick={() => clear(p.key)}>✕</button>
             </span>
           ))}
         </div>

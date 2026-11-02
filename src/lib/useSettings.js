@@ -12,6 +12,7 @@ const DEFAULTS = {
   hidden: [], // "관심 없어요"로 숨긴 프로그램(묶음 열쇠)
   hiddenRounds: [], // "이 회차만 남기기"로 숨긴 회차(예약 id)
   hideWords: [], // 숨길 단어: 센터 이름·프로그램 제목에 들어 있으면 숨김
+  placesScope: null, // 센터 목록의 구 범위: null(메인 화면을 따라감) | 'all' | 'mine'(내가 선택한 구) | 구 이름
   scope: 'near', // 마지막으로 고른 보기 범위: near(선택한 구) | all(서울 전체)
   bothKids: false, // 아이를 둘 이상 골랐을 때, 모두 갈 수 있는 프로그램만
   places: {}, // 관심(★)·제외(✕) 장소: { 열쇠: { s: 'fav'|'hide', n: 이름 } }

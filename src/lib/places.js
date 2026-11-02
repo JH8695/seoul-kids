@@ -16,6 +16,18 @@ export function placeKeyOf(course) {
 
 export const placeName = (course) => facilityOf(course?.place);
 
+/**
+ * 화면에 보여줄 짧은 이름: 이름 앞의 "서울특별시 " 와 "○○구 " 를 뺌 (구는 따로 표시하니까).
+ *   "서울특별시 동대문구 답십리로66길 3 서울형 키즈카페 장안1동점 (장안동)" → "답십리로66길 3 서울형 키즈카페 장안1동점 (장안동)"
+ * 저장된 이름이나 센터 열쇠는 그대로 두고, 보여주기·정렬에만 써요. "강남구립도서관"처럼 구 뒤에 공백이 없으면 그대로 둠.
+ */
+export function shortPlaceName(name) {
+  const full = String(name ?? '').replace(/\s+/g, ' ').trim();
+  let t = full.replace(/^서울(?:특별)?시\s+/, '');
+  t = t.replace(/^[가-힣]{1,5}구\s+/, '');
+  return t || full;
+}
+
 /** 저장된 값 검증 (동기화·가져오기 때 이상한 값이 들어와도 앱이 깨지지 않게). 항목: { s?: 'fav'|'hide', n: 이름, memo?: 메모 } */
 export function cleanPlaces(obj) {
   const out = {};
