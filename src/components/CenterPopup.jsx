@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 /**
  * 센터 팝업: 센터 목록에서 센터를 누르면 뜨는 창. 그 센터의 접수중·접수예정 프로그램을 카드로 보여줘요.
  * 메인 화면에서 고른 옵션(탭·구·요일·대상·갈 수 없는 시간 등)과 상관없이 전부 보여주고, 닫으면 그대로 돌아가요.
- * "대상 맞는 것만"은 이 팝업 안에서만 켜고 끌 수 있어요.
+ * "대상 맞는 것만"은 열 때마다 체크된 상태로 시작하고, 이 팝업 안에서만 끌 수 있어요.
  */
 export default function CenterPopup({ name, area, meta, items, renderItem, onSetPlace, onSetMemo, onClose }) {
-  const [onlyKid, setOnlyKid] = useState(false);
+  const [onlyKid, setOnlyKid] = useState(true); // 열 때마다 "대상 맞는 것만"이 체크된 상태로 시작 (원하면 팝업 안에서 끌 수 있음)
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const state = meta?.s ?? null;
@@ -46,7 +46,7 @@ export default function CenterPopup({ name, area, meta, items, renderItem, onSet
           <button type="button" className={`cp-btn${memo ? ' on' : ''}`} aria-expanded={editing} onClick={startEdit}>📝 {memo ? '메모 수정' : '메모'}</button>
           {fitCount < items.length && (
             <label className="cp-only">
-              <input type="checkbox" checked={onlyKid} onChange={(e) => setOnlyKid(e.target.checked)} /> 대상 맞는 것만 ({fitCount})
+              <input type="checkbox" checked={onlyKid} onChange={(e) => setOnlyKid(e.target.checked)} /> 대상 맞는 것만 ({fitCount}/{items.length})
             </label>
           )}
         </div>

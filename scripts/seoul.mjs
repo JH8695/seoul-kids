@@ -1,5 +1,6 @@
 // 서울시 공공서비스예약(OpenAPI) 한 줄(row) → 앱에서 쓰는 강좌 객체로 바꾸는 변환기.
 // 네트워크를 쓰지 않는 순수 함수만 모아 두어서 test/ 에서 바로 검증할 수 있어요.
+import { inferArea } from '../src/lib/inferArea.js';
 import { statusOf } from '../src/lib/status.js';
 import { parseDetailSchedule, pickTimeSlots } from './schedule.mjs';
 import { parseNthWeeks } from '../src/lib/title.js';
@@ -163,7 +164,7 @@ export function normalizeRow(row, source, now = Date.now()) {
     category: (row.MINCLASSNM || '').trim(),
     tags: classify({ minClass: row.MINCLASSNM || '', title, place }),
     place: place.replace(/>/g, ' · '),
-    area: (row.AREANM || '').trim(),
+    area: inferArea(row.AREANM, { place: row.PLACENM, title, detail }), // 구 칸이 비면 제목·장소·상세내용에서 알아냄
     pay: (row.PAYATNM || '').trim(),
     targetText: (row.USETGTINFO || '').replace(/\s+/g, ' ').trim(),
     statusText: (row.SVCSTATNM || '').trim(),
