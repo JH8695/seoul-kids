@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { placeKeyOf, placeName, shortPlaceName, cleanPlaces, withPlace, withPlaceMemo, placeMemoOf, placeState, listPlaces } from '../src/lib/places.js';
+import { placeKeyOf, placeName, shortPlaceName, cleanPlaces, withPlace, withPlaceMemo, placeMemoOf, placeState, listPlaces, withPlaceTimes, passesTravel, cleanTravel, placeTimesOf } from '../src/lib/places.js';
 import { cleanSearches, addRecent, removeTerm, togglePin } from '../src/lib/searches.js';
 import { updateSeen, isNewId, NEW_DAYS } from '../src/lib/firstSeen.js';
 
@@ -89,3 +89,41 @@ assert.equal(shortPlaceName('서울특별시'), '서울특별시'); // 다 지�
 assert.equal(shortPlaceName(shortPlaceName('서울특별시 동대문구 답십리로66길 3')), '답십리로66길 3'); // 두 번 적용해도 같음
 assert.equal(shortPlaceName(null), '');
 console.log('places.test.mjs OK');
+
+// 이동시간: 직접 입력한 분을 저장, 비우면 지움, 메모·관심은 그대로 유지
+let t = withPlaceTimes({}, 'k2', '센터2', { tr: 25, cr: 15 });
+assert.deepEqual(t.k2, { n: '센터2', tr: 25, cr: 15 });
+assert.deepEqual(placeTimesOf(t, 'k2'), { tr: 25, cr: 15 });
+t = withPlaceTimes(t, 'k2', '센터2', { tr: '' }); // 자차만 남김
+assert.deepEqual(t.k2, { n: '센터2', cr: 15 });
+t = withPlace(t, 'k2', '센터2', 'fav');
+t = withPlaceMemo(t, 'k2', '센터2', '주차 가능');
+assert.deepEqual(t.k2, { s: 'fav', n: '센터2', memo: '주차 가능', cr: 15 });
+t = withPlace(t, 'k2', '센터2', null); // 관심 해제해도 메모·시간은 남음
+assert.deepEqual(t.k2, { n: '센터2', memo: '주차 가능', cr: 15 });
+t = withPlaceMemo(t, 'k2', '센터2', '');
+assert.deepEqual(t.k2, { n: '센터2', cr: 15 });
+t = withPlaceTimes(t, 'k2', '센터2', { cr: null });
+assert.deepEqual(t, {}); // 아무것도 없으면 항목 삭제
+// 이상한 값(0, 음수, 글자, 너무 큰 값)은 저장 안 함, 소수는 반올림
+assert.deepEqual(withPlaceTimes({}, 'k3', 'x', { tr: 0, cr: -5 }), {});
+assert.deepEqual(withPlaceTimes({}, 'k3', 'x', { tr: 'abc', cr: 601 }), {});
+assert.deepEqual(withPlaceTimes({}, 'k3', 'x', { tr: 29.6 }).k3, { n: 'x', tr: 30 });
+assert.deepEqual(cleanPlaces({ a: { n: '가', tr: 20 }, b: { n: '나', tr: 'x' } }), { a: { n: '가', tr: 20 } });
+assert.equal(withPlaceTimes({}, null, 'x', { tr: 10 }) && Object.keys(withPlaceTimes({}, null, 'x', { tr: 10 })).length, 0);
+
+// 이동시간 필터
+const E = { tr: 25, cr: 35 };
+assert.equal(passesTravel({ transit: null, car: null }, undefined), true); // 필터 없으면 전부 통과
+assert.equal(passesTravel(undefined, undefined), true);
+assert.equal(passesTravel({ transit: 30, car: null }, E), true); // 25분 ≤ 30분
+assert.equal(passesTravel({ transit: 30, car: null }, { tr: 31 }), false);
+assert.equal(passesTravel({ transit: 60, car: null }, { tr: 60 }), true); // 경계 포함
+assert.equal(passesTravel({ transit: null, car: 20 }, E), false); // 35분 > 20분
+assert.equal(passesTravel({ transit: null, car: 40 }, E), true);
+assert.equal(passesTravel({ transit: 30, car: null }, { cr: 10 }), false); // 대중교통 시간을 안 적었으면 통과 못 함
+assert.equal(passesTravel({ transit: 30, car: 20 }, { cr: 10 }), true); // 둘 다 고르면 하나라도 맞으면 통과
+assert.equal(passesTravel({ transit: 30, car: 20 }, { tr: 50, cr: 30 }), false);
+assert.equal(passesTravel({ transit: 30, car: null }, undefined), false); // 시간 미입력 센터
+assert.deepEqual(cleanTravel({ transit: 45, car: 20 }), { transit: null, car: 20 }); // 정해진 값만 인정
+assert.deepEqual(cleanTravel(null), { transit: null, car: null });

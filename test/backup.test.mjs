@@ -60,5 +60,7 @@ console.log('backup.test.mjs OK');
   const r = parseImport(buildExport({ kids: [{ id: 'k1', label: '큰아이', birthYear: 2017 }], placesScope: '동작구' }));
   assert.equal(r.settings.placesScope, '동작구');
   assert.equal(parseImport(JSON.stringify({ app: 'seoul-kids', v: 1, settings: { placesScope: 5 } })).settings.placesScope, null);
+  assert.deepEqual(parseImport(buildExport({ travel: { transit: 30, car: 40 } })).settings.travel, { transit: 30, car: 40 });
+  assert.deepEqual(parseImport(JSON.stringify({ app: 'seoul-kids', v: 1, settings: { travel: { transit: 99, car: 'x' } } })).settings.travel, { transit: null, car: null });
 }
 console.log('backup extra OK');

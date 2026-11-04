@@ -735,3 +735,20 @@ body { overflow-x: hidden; }
 .pl-filter { flex: 0 0 auto; }
 .pl-filter .search { flex: 1 1 auto; height: auto; align-self: stretch; }
 .places-page > .search { flex: 0 0 auto; }
+
+.cal-row-pmemo { margin-left: 6px; color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.pe { display: grid; gap: 8px; }
+.pe-times { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.pe-time { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.pe-time input { flex: 0 0 auto; width: 4.5em; min-width: 0; text-align: right; }
+.pe-btns { display: flex; gap: 6px; }
+.pl-time { font-size: 12.5px; color: var(--ink); }
+.cal-row-ptime { margin-left: 6px; color: var(--ink); }
+.place-time { display: block; font-size: 12.5px; color: var(--ink); margin-top: 2px; }
+.travel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.travel .tv-lbl { font-size: 13px; color: var(--muted); }
+.tv-hint { font-size: 12px; color: var(--muted); margin: 0; }
+.tv-pair { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.travel-wrap { display: grid; gap: 4px; min-width: 0; }
+.tv-title { margin: 0 0 6px; font-weight: 600; font-size: 14px; }
+.sheet-travel { margin-bottom: 14px; }

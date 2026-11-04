@@ -51,7 +51,7 @@ export function KidPills({ kidMatches }) {
 export default function CourseCard({
   course, status, kidMatches, targetNote, audience, distance, home, fav, onToggleFav,
   needDetail, online, standing, dateSource, chips, actions, note, onNote, busy,
-  placeSt, placeMemo, onPlace, onOpenCenter, isNew, trust,
+  placeSt, placeMemo, placeTime, onPlace, onOpenCenter, isNew, trust,
   focusYmd, onGoCalendar, imageSchedule, edits = [],
 }) {
   const [open, setOpen] = useState(false);
@@ -153,6 +153,7 @@ export default function CourseCard({
                 </button>
               </span>
             )}
+            {placeTime && <span className="place-time">{placeTime}</span>}
             {placeMemo && <span className="place-memo">📝 {placeMemo}</span>}
             <span className="meta-line">
               {course.area && <span>📍 {course.area}</span>}

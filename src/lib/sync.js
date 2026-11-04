@@ -3,7 +3,8 @@
 // 항목(키)마다 "마지막으로 고친 시각(stamp)"을 따로 기록해서:
 //   - 평소: 항목별로 나중에 고친 쪽을 따라요 (지운 것도 지운 대로 반영돼요)
 //   - 처음 계정에 연결할 때: 찜·숨김·메모는 양쪽 것을 합쳐요 (한쪽이 다른 쪽을 덮어써서 사라지지 않게)
-export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'placesScope', 'hideWords', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+import { cleanTravel } from './places.js';
+export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'placesScope', 'travel', 'hideWords', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
 const LIST_KEYS = ['favs', 'hidden', 'hiddenRounds', 'hideWords']; // 합칠 때 합집합으로
 const PREF_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy']; // 개인 취향 설정
 
@@ -11,7 +12,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function pickSync(settings) {
   const out = {};
-  for (const k of SYNC_KEYS) out[k] = settings[k] ?? (k === 'notes' || k === 'places' ? {} : k === 'searches' ? { recent: [], pinned: [] } : k === 'bothKids' ? false : k === 'scope' ? 'near' : k === 'placesScope' ? null : []);
+  for (const k of SYNC_KEYS) out[k] = settings[k] ?? (k === 'notes' || k === 'places' ? {} : k === 'searches' ? { recent: [], pinned: [] } : k === 'bothKids' ? false : k === 'scope' ? 'near' : k === 'placesScope' ? null : k === 'travel' ? { transit: null, car: null } : []);
   return out;
 }
 
@@ -44,6 +45,8 @@ export function mergeUnion(local, remote, { prefs = 'remote' } = {}) {
   out.scope = prefs === 'remote' && remote.scope !== undefined ? sc(remote.scope) : sc(local.scope);
   const ps = (v) => (typeof v === 'string' && v.length > 0 && v.length <= 20 ? v : null);
   out.placesScope = prefs === 'remote' && remote.placesScope !== undefined ? ps(remote.placesScope) : ps(local.placesScope);
+  const tv = (v) => cleanTravel(v);
+  out.travel = prefs === 'remote' && remote.travel !== undefined ? tv(remote.travel) : tv(local.travel);
   out.bothKids = prefs === 'remote' && remote.bothKids !== undefined ? remote.bothKids === true : local.bothKids === true;
   for (const k of PREF_KEYS) {
     const useRemote = prefs === 'remote' && remote[k] !== undefined;

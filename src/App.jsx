@@ -7,7 +7,7 @@ import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
 import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
 import { classifyBusy, cleanBusy } from './lib/busy';
-import { cleanPlaces, listPlaces, placeKeyOf, placeMemoOf, placeName, placeState, shortPlaceName, withPlace, withPlaceMemo } from './lib/places';
+import { cleanPlaces, cleanTravel, listPlaces, passesTravel, placeKeyOf, placeMemoOf, placeName, placeState, shortPlaceName, timesText, withPlace, withPlaceMemo, withPlaceTimes } from './lib/places';
 import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
 import { isNewId, updateSeen } from './lib/firstSeen';
 import { cleanWords, hitWords } from './lib/hideWords';
@@ -131,6 +131,8 @@ export default function App() {
   const busyList = useMemo(() => cleanBusy(settings.busy), [settings.busy]);
   const places = useMemo(() => cleanPlaces(settings.places), [settings.places]);
   const hideWords = useMemo(() => cleanWords(settings.hideWords), [settings.hideWords]);
+  const travel = useMemo(() => cleanTravel(settings.travel), [settings.travel]);
+  const travelOn = !!(travel.transit || travel.car);
   const searches = useMemo(() => cleanSearches(settings.searches), [settings.searches]);
   const favPlaces = useMemo(() => listPlaces(places, 'fav'), [places]);
 
@@ -314,6 +316,7 @@ export default function App() {
           hideHits: hitWords(hideWords, c), // 걸린 "숨길 단어"들
           placeSt: placeState(places, placeKeyOf(c)),
           placeMemo: placeMemoOf(places, placeKeyOf(c)),
+          placeTime: timesText(places[placeKeyOf(c)]),
           isNew: isNewId(seen, c.id, nowMs),
           needDetail: !daySet && !tinfo.dates && !!multiDay,
           groupKey: groupKeyOf(c),
@@ -379,7 +382,13 @@ export default function App() {
     if (state === 'hide') setToast({ kind: 'place', key, name, prev, text: `이 센터를 제외했어요 · ${shortPlaceName(name)}` });
   };
   // 센터 메모(예: 지하철·자차 소요 시간). 센터 목록에서 적고, 카드의 센터 이름 아래에도 보여줌
-  const setPlaceMemo = (key, name, memo) => setSettings((s) => ({ ...s, places: withPlaceMemo(cleanPlaces(s.places), key, name, memo) }));
+  // 센터 메모 + 이동시간(분)을 한 번에 저장
+  const setPlaceInfo = (key, name, { memo, tr, cr }) =>
+    setSettings((s) => {
+      let p = withPlaceMemo(cleanPlaces(s.places), key, name, memo);
+      p = withPlaceTimes(p, key, name, { tr, cr });
+      return { ...s, places: p };
+    });
   const setPlaceFor = (row, state) => applyPlace(row.placeKey, placeName(row.course), state);
   // 센터 목록에서 이름을 누르면: 팝업으로 그 센터의 프로그램을 보여줌 (메인 화면의 옵션은 건드리지 않음)
   const pickPlace = (it) => setCenterOpen({ key: it.key, name: it.name });
@@ -446,7 +455,7 @@ export default function App() {
   const q = norm(query);
 
   // 분야·상태 탭을 빼고 적용하는 공통 조건. countOpen=true 면 "제한없음 포함" 설정을 무시하고 셈(옆에 건수를 보여주려고)
-  const pre = (skipCats, countOpen) =>
+  const pre = (skipCats, countOpen, skipTravel) =>
     enriched.filter((e) => {
       const c = e.course;
       if (isOver(e)) return false; // 이미 끝난 프로그램(회차)
@@ -456,6 +465,7 @@ export default function App() {
       if (hk) return false;
       if (favOnly) return isFavRow(e); // 찜 목록은 구·대상·분야 조건과 상관없이 보여줌
       if (placeOnly && e.placeSt !== 'fav') return false; // 관심 장소만 (구 선택과 상관없이, 대상 조건은 적용)
+      if (!skipTravel && travelOn && !e.online && !passesTravel(travel, places[e.placeKey])) return false; // 이동시간 필터(온라인은 제외)
       if (scope === 'near' && !placeOnly && c.area && !settings.areas.includes(c.area)) return false;
       if (freeOnly && !(/무료/.test(c.pay) && !/유료/.test(c.pay))) return false;
       if (!showAllTargets) {
@@ -477,7 +487,7 @@ export default function App() {
   // 묶음 기준 개수 (상시 운영·요일 확인 필요는 따로 세므로 뺌)
   const countItems = (rows) => new Set(rows.filter((e) => !e.standing && !isDayUnknown(e)).map((e) => e.groupKey)).size;
 
-  const dep = [scope, placeOnly, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, hiddenRoundSet, showHidden, activeIds, effDays, todayYmd];
+  const dep = [travel, places, scope, placeOnly, settings.areas, showAllTargets, includeOpen, freeOnly, q, favOnly, favs, hiddenSet, hiddenRoundSet, showHidden, activeIds, effDays, todayYmd];
   /* eslint-disable */
   const base = useMemo(() => pre(false), [enriched, cats, ...dep]);
   const baseNoCats = useMemo(() => pre(true), [enriched, ...dep]);
@@ -626,6 +636,7 @@ export default function App() {
       onNote={() => setNoteFor(e.course.id)}
       placeSt={e.placeSt}
       placeMemo={e.placeMemo}
+      placeTime={e.placeTime}
       onPlace={(st) => setPlaceFor(e, st)}
       onOpenCenter={() => setCenterOpen({ key: e.placeKey, name: placeName(e.course) })}
       isNew={newShown(e)}
@@ -662,7 +673,7 @@ export default function App() {
             {STATUS_LABEL[e.status]}
           </span>
           <span className="cal-row-title">{c.title}</span>
-          <span className="cal-row-sub">{time && `${time} · `}{c.place}</span>
+          <span className="cal-row-sub">{time && `${time} · `}{c.place}{e.placeTime && <span className="cal-row-ptime">{e.placeTime}</span>}{e.placeMemo && <span className="cal-row-pmemo">📝 {e.placeMemo}</span>}</span>
           {e.note?.text && <span className="cal-row-note">📝 {e.note.text}</span>}
           <span className="cal-row-target">
             대상 {c.targetText || '원문 없음'}
@@ -838,11 +849,42 @@ export default function App() {
       ))}
     </div>
   ) : null;
+  // 이동시간 필터: 센터별 시간은 센터 목록·팝업에서 직접 입력. 대중교통·자차 중 하나 또는 둘 다 고를 수 있고, 둘 다 고르면 하나라도 맞으면 보여줌
+  const setTravel = (patch) => setSettings({ ...settings, travel: { ...travel, ...patch } });
+  const travelSeg = (mode, label, opts) => (
+    <div className="seg" role="group" aria-label={label}>
+      <button type="button" className={!travel[mode] ? 'on' : ''} onClick={() => setTravel({ [mode]: null })}>전체</button>
+      {opts.map(([v, t]) => (
+        <button key={v} type="button" className={travel[mode] === v ? 'on' : ''} aria-pressed={travel[mode] === v} onClick={() => setTravel({ [mode]: travel[mode] === v ? null : v })}>{t}</button>
+      ))}
+    </div>
+  );
+  const travelUnset = useMemo(() => {
+    if (!travelOn) return 0;
+    const keys = new Set();
+    pre(false, false, true).forEach((e) => {
+      if (e.online || !e.placeKey) return;
+      const p = places[e.placeKey];
+      if (!((travel.transit && p?.tr) || (travel.car && p?.cr))) keys.add(e.placeKey);
+    });
+    return keys.size;
+  }, [enriched, travel, places, ...dep]); // eslint-disable-line react-hooks/exhaustive-deps
+  const travelEl = (
+    <div className="travel">
+      <span className="tv-pair"><span className="tv-lbl">🚇 대중교통</span>{travelSeg('transit', '대중교통 이동시간', [[30, '30분'], [60, '1시간']])}</span>
+      <span className="tv-pair"><span className="tv-lbl">🚗 자차</span>{travelSeg('car', '자차 이동시간', [[20, '20분'], [40, '40분']])}</span>
+    </div>
+  );
+  const travelHint = travelOn ? (
+    <p className="tv-hint">센터별 시간을 직접 입력해 둔 곳만 보여요{travelUnset > 0 ? ` (시간 미입력 ${travelUnset}곳 제외 · 센터 목록에서 입력)` : ''}. 온라인 프로그램은 그대로 보여요.</p>
+  ) : null;
+  const travelText = [travel.transit ? `🚇 ${travel.transit === 60 ? '1시간' : '30분'}` : '', travel.car ? `🚗 ${travel.car}분` : ''].filter(Boolean).join(' · ');
   // 필터를 접었을 때 보여주는 한 줄 요약: 기본값이 아닌 것만 진하게
   const sumItems = [
     { k: 'cats', on: cats.length > 0, text: cats.length ? cats.map((id) => CATEGORIES.find((c) => c.id === id)?.label).filter(Boolean).join('·') : '분야 전체' },
     { k: 'kids', on: activeIds.length !== kids.length || (bothKids && activeIds.length > 1), text: `${kids.filter((k) => activeIds.includes(k.id)).map((k) => k.label).join('·') || '아이 없음'}${bothKids && activeIds.length > 1 ? ' (둘 다)' : ''}` },
     { k: 'area', on: scope === 'all', text: scope === 'near' ? (settings.areas.length > 1 ? `${settings.areas[0]} 외 ${settings.areas.length - 1}곳` : settings.areas[0] ?? '구 선택 없음') : '서울 전체' },
+    { k: 'travel', on: travelOn, text: travelOn ? `이동 ${travelText}` : '이동 전체' },
     { k: 'days', on: !allDays, text: allDays ? '요일 전체' : DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_LABELS[d]).join('·') },
   ];
   const checkLabels = (
@@ -878,7 +920,7 @@ export default function App() {
   );
 
   // ---- 폰: 분야·아이·구·옵션 버튼 4개 + 아래에서 올라오는 선택 창 ----
-  const phoneOptionCount = optionCount + (!allDays ? 1 : 0) + (sort !== 'apply' ? 1 : 0);
+  const phoneOptionCount = optionCount + (!allDays ? 1 : 0) + (travelOn ? 1 : 0) + (sort !== 'apply' ? 1 : 0);
   const daysText = DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_LABELS[d]).join('·');
   const fbtn = (label, badge, on, onClick) => (
     <button type="button" className={`fbtn${on ? ' on' : ''}`} onClick={onClick}>
@@ -893,7 +935,7 @@ export default function App() {
         {fbtn(scope === 'near' ? '구' : '서울', scope === 'near' ? settings.areas.length : null, scope === 'all', () => setSheet('area'))}
         {fbtn('옵션', phoneOptionCount || null, phoneOptionCount > 0, () => setSheet('options'))}
       </div>
-      {(cats.length > 0 || !allDays) && (
+      {(cats.length > 0 || !allDays || travelOn) && (
         <div className="ftags">
           {cats.map((id) => (
             <button key={id} type="button" className="ftag" onClick={() => toggleCat(id)}>
@@ -902,6 +944,9 @@ export default function App() {
           ))}
           {!allDays && (
             <button type="button" className="ftag" onClick={() => setSettings({ ...settings, days: [] })}>요일 {daysText} ✕</button>
+          )}
+          {travelOn && (
+            <button type="button" className="ftag" onClick={() => setSettings({ ...settings, travel: { transit: null, car: null } })}>이동 {travelText} ✕</button>
           )}
         </div>
       )}
@@ -962,6 +1007,10 @@ export default function App() {
               <label key={x.id}><input type="radio" name="sort" checked={sort === x.id} onChange={() => setSort(x.id)} /> {x.label}</label>
             ))}
           </fieldset>
+          <div className="sheet-travel">
+            <p className="tv-title">이동시간</p>
+            <div className="travel-wrap">{travelEl}{travelHint}</div>
+          </div>
           <div className="sheet-days">
             <div className="days" role="group" aria-label="이용 요일">
               <span className="days-label">요일</span>
@@ -1048,6 +1097,7 @@ export default function App() {
               <div className="fgroup"><span className="flabel">아이</span>{kidsEl}</div>
               <div className="fgroup"><span className="flabel">요일</span>{daysEl}</div>
               <div className="fgroup wide"><span className="flabel">지역</span>{scopeSeg}{hintEl}</div>
+              <div className="fgroup wide"><span className="flabel">이동</span><div className="travel-wrap">{travelEl}{travelHint}</div></div>
             </div>
           ) : (
             <button type="button" className="tb-summary" onClick={toggleFilters} aria-label="필터 펼치기">
@@ -1208,7 +1258,7 @@ export default function App() {
           onScope={(v) => setSettings((s) => ({ ...s, placesScope: v }))}
           onPick={pickPlace}
           onSetPlace={(it, st) => applyPlace(it.key, it.name, st)}
-          onSetMemo={(it, text) => setPlaceMemo(it.key, it.name, text)}
+          onSetInfo={(it, info) => setPlaceInfo(it.key, it.name, info)}
           onClose={() => setPlacesOpen(false)}
         />
       )}
@@ -1221,7 +1271,7 @@ export default function App() {
           items={centerItems}
           renderItem={renderItem}
           onSetPlace={(st) => applyPlace(centerOpen.key, centerOpen.name, st)}
-          onSetMemo={(text) => setPlaceMemo(centerOpen.key, centerOpen.name, text)}
+          onSetInfo={(info) => setPlaceInfo(centerOpen.key, centerOpen.name, info)}
           onClose={() => setCenterOpen(null)}
         />
       )}
