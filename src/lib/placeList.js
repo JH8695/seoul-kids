@@ -1,5 +1,5 @@
 // 장소 페이지(가나다 순)용 목록 만들기. 화면과 상관없는 순수 함수예요.
-import { placeName, shortPlaceName } from './places.js';
+import { passesTravel, placeName, shortPlaceName } from './places.js';
 
 const CHO = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
 const BASE = { ㄲ: 'ㄱ', ㄸ: 'ㄷ', ㅃ: 'ㅂ', ㅆ: 'ㅅ', ㅉ: 'ㅈ' }; // 쌍자음은 같은 칸으로
@@ -25,13 +25,15 @@ const norm = (x) => String(x ?? '').replace(/\s+/g, '').toLowerCase();
  * @param rows   [{ placeKey, course:{place, area}, groupKey, status, isNew }] — 지금 보여줄 회차들
  * @param places 설정의 관심·제외 장소 { 열쇠: { s, n } }
  * @param q      이름 검색어 (짧은 이름·원래 이름·구 어디에 있어도 찾음)
+ * @param travel  이동시간 필터 { transit, car } (센터 목록 안에서만 쓰는 값). 시간을 입력하지 않은 센터는 빠짐
+ * @param unsetOnly true 면 이동시간(대중교통·자차)을 하나도 입력하지 않은 센터만 (입력하러 찾아볼 때)
  * @param areaOk 구 범위: (구 이름) => boolean. 관심·제외로 정해 둔 센터도 같은 범위로 거름
  * @returns { fav: Item[], hide: Item[], normal: [{ initial, items }] }
  *   Item = { key, name, area, programs, open, upcoming, news, state }
  *   - 관심(★) 장소는 지금 올라온 프로그램이 없어도 항상 목록에 있음
  *   - 제외(✕) 장소도 마찬가지(되돌릴 수 있게)
  */
-export function buildPlaceList({ rows, places = {}, q = '', areaOk = () => true }) {
+export function buildPlaceList({ rows, places = {}, q = '', areaOk = () => true, travel = null, unsetOnly = false }) {
   const map = new Map();
   for (const r of rows) {
     if (!r.placeKey) continue;
@@ -54,6 +56,7 @@ export function buildPlaceList({ rows, places = {}, q = '', areaOk = () => true 
   const nq = norm(q);
   const items = [...map.values()]
     .filter((it) => !nq || norm(`${it.name} ${it.full} ${it.area}`).includes(nq))
+    .filter((it) => (unsetOnly ? !places[it.key]?.tr && !places[it.key]?.cr : passesTravel(travel, places[it.key])))
     .map((it) => {
       const gs = [...it.groups.values()];
       return {

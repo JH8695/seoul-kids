@@ -8,6 +8,8 @@ import { buildPlaceList } from '../lib/placeList';
 export default function PlacesPage({ rows, places, myAreas = [], scopeValue = 'all', onScope, onPick, onSetPlace, onSetInfo, onClose }) {
   const [q, setQ] = useState('');
   const [editKey, setEditKey] = useState(null);
+  const [tv, setTv] = useState({ transit: null, car: null }); // 이 화면 안에서만 쓰는 이동시간 필터(저장 안 함)
+  const [unsetOnly, setUnsetOnly] = useState(false); // 이동시간을 아직 입력하지 않은 센터만
   const bodyRef = useRef(null);
   // 구 범위: all(서울 전체) | mine(내가 선택한 구) | 구 이름
   const areaOk = useMemo(
@@ -26,7 +28,21 @@ export default function PlacesPage({ rows, places, myAreas = [], scopeValue = 'a
     return [...m.entries()].map(([name, set]) => ({ name, n: set.size })).sort((x, y) => x.name.localeCompare(y.name, 'ko'));
   }, [rows, scopeValue]);
   const totalCenters = useMemo(() => new Set(rows.map((r) => r.placeKey).filter(Boolean)).size, [rows]);
-  const { fav, hide, normal } = useMemo(() => buildPlaceList({ rows, places, q, areaOk }), [rows, places, q, areaOk]);
+  const { fav, hide, normal } = useMemo(() => buildPlaceList({ rows, places, q, areaOk, travel: tv, unsetOnly }), [rows, places, q, areaOk, tv, unsetOnly]);
+  const tvOn = !!(tv.transit || tv.car) || unsetOnly;
+  // "시간 미입력만" 옆에 보여줄 개수: 지금 구·검색 조건에서 시간을 안 적은 센터 수
+  const unsetCount = useMemo(() => {
+    const r = buildPlaceList({ rows, places, q, areaOk, unsetOnly: true });
+    return r.fav.length + r.hide.length + r.normal.reduce((n, b) => n + b.items.length, 0);
+  }, [rows, places, q, areaOk]);
+  const seg = (mode, label, opts) => (
+    <div className="seg" role="group" aria-label={label}>
+      <button type="button" className={!tv[mode] ? 'on' : ''} onClick={() => setTv({ ...tv, [mode]: null })}>안 씀</button>
+      {opts.map(([v, t]) => (
+        <button key={v} type="button" className={tv[mode] === v ? 'on' : ''} aria-pressed={tv[mode] === v} onClick={() => { setUnsetOnly(false); setTv({ ...tv, [mode]: tv[mode] === v ? null : v }); }}>{t}</button>
+      ))}
+    </div>
+  );
   const jump = (initial) => bodyRef.current?.querySelector(`[data-initial="${initial}"]`)?.scrollIntoView({ block: 'start' });
   const startEdit = (it) => setEditKey(editKey === it.key ? null : it.key);
   const saveInfo = (it, info) => { onSetInfo(it, info); setEditKey(null); };
@@ -102,6 +118,12 @@ export default function PlacesPage({ rows, places, myAreas = [], scopeValue = 'a
         </select>
         <input type="search" className="search" placeholder="센터 이름 검색" aria-label="센터 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+      <div className="pl-travel" role="group" aria-label="이동시간 필터">
+        <span className="tv-pair"><span className="tv-lbl">🚇 대중교통</span>{seg('transit', '대중교통 이동시간', [[30, '30분'], [60, '1시간']])}</span>
+        <span className="tv-pair"><span className="tv-lbl">🚗 자차</span>{seg('car', '자차 이동시간', [[20, '20분'], [40, '40분']])}</span>
+        <button type="button" className={`chip${unsetOnly ? ' on' : ''}`} aria-pressed={unsetOnly} onClick={() => { setUnsetOnly((v) => !v); setTv({ transit: null, car: null }); }}>시간 미입력만 <span className="n">{unsetCount}</span></button>
+        {tvOn && !unsetOnly && tv.transit && tv.car && <span className="tv-hint">둘 중 하나라도 맞으면 보여요</span>}
+      </div>
       <p className="hint">이름을 누르면 그 센터의 프로그램이 팝업으로 떠요. ⏱ 이동시간(대중교통·자차 분)·메모, ☆ 관심(맨 위 고정), ✕ 제외예요. 센터 이름 앞의 &quot;서울특별시 ○○구&quot;는 줄여서 보여줘요.</p>
       {normal.length > 0 && (
         <nav className="pl-jump" aria-label="초성으로 건너뛰기">
@@ -121,7 +143,7 @@ export default function PlacesPage({ rows, places, myAreas = [], scopeValue = 'a
             <ul className="pl-list">{b.items.map(row)}</ul>
           </section>
         ))}
-        {total === 0 && <p className="empty">{q ? '검색어에 맞는 센터가 없어요.' : '보여줄 센터가 없어요. 구나 대상 조건을 바꿔 보세요.'}</p>}
+        {total === 0 && <p className="empty">{q ? '검색어에 맞는 센터가 없어요.' : tvOn ? '이동시간 조건에 맞는 센터가 없어요. 시간을 입력하지 않은 센터는 빠져요("시간 미입력만"에서 찾아 입력).' : '보여줄 센터가 없어요. 구나 대상 조건을 바꿔 보세요.'}</p>}
         {hide.length > 0 && (
           <details className="pl-hide">
             <summary>✕ 제외한 센터 {hide.length}개 · 눌러서 펼치기</summary>

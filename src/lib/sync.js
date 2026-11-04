@@ -4,8 +4,8 @@
 //   - 평소: 항목별로 나중에 고친 쪽을 따라요 (지운 것도 지운 대로 반영돼요)
 //   - 처음 계정에 연결할 때: 찜·숨김·메모는 양쪽 것을 합쳐요 (한쪽이 다른 쪽을 덮어써서 사라지지 않게)
 import { cleanTravel } from './places.js';
-export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'placesScope', 'travel', 'hideWords', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
-const LIST_KEYS = ['favs', 'hidden', 'hiddenRounds', 'hideWords']; // 합칠 때 합집합으로
+export const SYNC_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'placesScope', 'travel', 'hideWords', 'offDays', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+const LIST_KEYS = ['favs', 'hidden', 'hiddenRounds', 'hideWords', 'offDays']; // 합칠 때 합집합으로
 const PREF_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy']; // 개인 취향 설정
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);

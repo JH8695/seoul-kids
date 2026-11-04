@@ -85,4 +85,21 @@ assert.deepEqual(r.normal.flatMap((b) => b.items).map((i) => i.name), ['서울�
   const r7 = buildPlaceList({ rows: [], places: { [favKey]: { s: 'fav', n: '서울특별시 도봉구 해등로4길 38 초안산생태공원 내 위치 (창동)' } } });
   assert.equal(r7.fav[0].name, '해등로4길 38 초안산생태공원 내 위치 (창동)');
 }
+{
+  // 센터 목록의 이동시간 필터
+  const mk = (area, place, id) => ({ placeKey: placeKeyOf({ area, place }), course: { place, area }, groupKey: id, status: 'open', isNew: false });
+  const rows = [mk('강남구', 'A센터', 'g1'), mk('서초구', 'B센터', 'g2'), mk('용산구', 'C센터', 'g3')];
+  const places = { [placeKeyOf({ area: '강남구', place: 'A센터' })]: { n: 'A센터', tr: 25, cr: 35 }, [placeKeyOf({ area: '서초구', place: 'B센터' })]: { n: 'B센터', tr: 50, cr: 15 } };
+  const names = (r) => [...r.fav, ...r.normal.flatMap((b) => b.items)].map((i) => i.name).sort();
+  assert.deepEqual(names(buildPlaceList({ rows, places })), ['A센터', 'B센터', 'C센터']); // 필터 없음
+  assert.deepEqual(names(buildPlaceList({ rows, places, travel: { transit: null, car: null } })), ['A센터', 'B센터', 'C센터']);
+  assert.deepEqual(names(buildPlaceList({ rows, places, travel: { transit: 30, car: null } })), ['A센터']);
+  assert.deepEqual(names(buildPlaceList({ rows, places, travel: { transit: null, car: 20 } })), ['B센터']);
+  assert.deepEqual(names(buildPlaceList({ rows, places, travel: { transit: 30, car: 20 } })), ['A센터', 'B센터']); // 하나라도 맞으면
+  assert.deepEqual(names(buildPlaceList({ rows, places, unsetOnly: true })), ['C센터']); // 시간 미입력만
+  // 관심 센터도 같은 필터를 따름
+  const fav = { ...places, [placeKeyOf({ area: '용산구', place: 'C센터' })]: { s: 'fav', n: 'C센터' } };
+  assert.equal(buildPlaceList({ rows, places: fav, travel: { transit: 30, car: null } }).fav.length, 0);
+  assert.equal(buildPlaceList({ rows, places: fav, unsetOnly: true }).fav.length, 1);
+}
 console.log('placelist.test.mjs OK');

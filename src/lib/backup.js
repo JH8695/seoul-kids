@@ -2,10 +2,11 @@
 import { cleanNote } from './edits.js';
 import { cleanBusy } from './busy.js';
 import { cleanPlaces, cleanTravel } from './places.js';
+import { cleanOffDays } from './offDays.js';
 import { cleanWords } from './hideWords.js';
 import { cleanSearches } from './searches.js';
 
-export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'placesScope', 'travel', 'hideWords', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
+export const EXPORT_KEYS = ['kids', 'activeKids', 'areas', 'days', 'busy', 'bothKids', 'scope', 'placesScope', 'travel', 'hideWords', 'offDays', 'places', 'searches', 'favs', 'hidden', 'hiddenRounds', 'notes'];
 
 export function buildExport(settings) {
   const out = {};
@@ -46,6 +47,7 @@ export function parseImport(text) {
   if (s.hideWords !== undefined) out.hideWords = cleanWords(s.hideWords);
   if (s.scope !== undefined) out.scope = s.scope === 'all' ? 'all' : 'near';
   if (s.bothKids !== undefined) out.bothKids = s.bothKids === true;
+  if (s.offDays !== undefined) out.offDays = cleanOffDays(s.offDays);
   if (s.travel !== undefined) out.travel = cleanTravel(s.travel);
   if (s.places !== undefined) out.places = cleanPlaces(s.places);
   if (s.searches !== undefined) out.searches = cleanSearches(s.searches);

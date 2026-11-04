@@ -7,6 +7,7 @@ import { distanceKm } from './lib/geo';
 import { compareAreas } from './lib/areas';
 import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
 import { classifyBusy, cleanBusy } from './lib/busy';
+import { cleanOffDays, toggleOffDay } from './lib/offDays';
 import { cleanPlaces, cleanTravel, listPlaces, passesTravel, placeKeyOf, placeMemoOf, placeName, placeState, shortPlaceName, timesText, withPlace, withPlaceMemo, withPlaceTimes } from './lib/places';
 import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
 import { isNewId, updateSeen } from './lib/firstSeen';
@@ -133,6 +134,8 @@ export default function App() {
   const hideWords = useMemo(() => cleanWords(settings.hideWords), [settings.hideWords]);
   const travel = useMemo(() => cleanTravel(settings.travel), [settings.travel]);
   const travelOn = !!(travel.transit || travel.car);
+  const offDays = useMemo(() => cleanOffDays(settings.offDays), [settings.offDays]);
+  const toggleOff = (ymd) => setSettings((s) => ({ ...s, offDays: toggleOffDay(s.offDays, ymd) }));
   const searches = useMemo(() => cleanSearches(settings.searches), [settings.searches]);
   const favPlaces = useMemo(() => listPlaces(places, 'fav'), [places]);
 
@@ -876,7 +879,7 @@ export default function App() {
     </div>
   );
   const travelHint = travelOn ? (
-    <p className="tv-hint">{travel.transit && travel.car ? '둘 다 고르면 하나라도 맞는 센터를 보여줘요. ' : ''}센터별 시간을 직접 입력해 둔 곳만 보여요{travelUnset > 0 ? ` (시간 미입력 ${travelUnset}곳 제외 · 센터 목록에서 입력)` : ''}. 온라인 프로그램은 그대로 보여요.</p>
+    <p className="tv-hint" title="온라인 프로그램은 이동시간과 상관없이 그대로 보여요">{travel.transit && travel.car ? '둘 중 하나라도 맞으면 보여요 · ' : ''}시간을 입력한 센터만 보여요{travelUnset > 0 ? ` · 미입력 ${travelUnset}곳 제외 (센터 목록에서 입력)` : ''}</p>
   ) : null;
   const travelText = [travel.transit ? `🚇 ${travel.transit === 60 ? '1시간' : '30분'}` : '', travel.car ? `🚗 ${travel.car}분` : ''].filter(Boolean).join(' · ');
   // 필터를 접었을 때 보여주는 한 줄 요약: 기본값이 아닌 것만 진하게
@@ -1193,13 +1196,13 @@ export default function App() {
         {isDesktop ? (
           <div className="pane-right">
             <section className="pane-cal" aria-label="달력">
-              <CalendarView dayFilter={effDays} rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
+              <CalendarView offDays={offDays} onToggleOff={toggleOff} dayFilter={effDays} rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           </div>
         ) : (
           view === 'calendar' && (
             <section className="pane-cal-m" aria-label="달력">
-              <CalendarView dayFilter={effDays} rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
+              <CalendarView offDays={offDays} onToggleOff={toggleOff} dayFilter={effDays} rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           )
         )}

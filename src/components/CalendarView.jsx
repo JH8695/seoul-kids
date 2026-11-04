@@ -8,7 +8,8 @@ const HEAD = [0, 1, 2, 3, 4, 5, 6]; // 일~토
 
 const timeKey = (c) => (c.timeKnown && c.classStart ? c.classStart.slice(11, 16) : '99:99');
 
-export default function CalendarView({ dayFilter = [], rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {}, focusDate = null }) {
+export default function CalendarView({ dayFilter = [], rows, renderItem, compact = false, groupByArea = false, collapsed = new Set(), onToggleArea = () => {}, focusDate = null, offDays = [], onToggleOff = null }) {
+  const offSet = useMemo(() => new Set(offDays), [offDays]);
   const today = useMemo(() => toYmd(new Date()), []);
   const [cursor, setCursor] = useState(() => ({ y: +today.slice(0, 4), m: +today.slice(5, 7) }));
   const [sel, setSel] = useState(today);
@@ -155,9 +156,9 @@ export default function CalendarView({ dayFilter = [], rows, renderItem, compact
             <button
               key={ymd}
               type="button"
-              className={`cal-cell${ymd === today ? ' today' : ''}${ymd === sel ? ' sel' : ''}${dayFilter.length && !dayFilter.includes(col) ? ' off' : ''}${col === 6 ? ' sat' : col === 0 ? ' sun' : ''}`}
+              className={`cal-cell${ymd === today ? ' today' : ''}${ymd === sel ? ' sel' : ''}${offSet.has(ymd) ? ' offday' : ''}${dayFilter.length && !dayFilter.includes(col) ? ' off' : ''}${col === 6 ? ' sat' : col === 0 ? ' sun' : ''}`}
               onClick={() => setSel(ymd)}
-              aria-label={`${+ymd.slice(5, 7)}월 ${+ymd.slice(8, 10)}일, 프로그램 ${sureItems.length}개${items.length > sureItems.length ? `, 기간 중 운영 ${items.length - sureItems.length}개` : ''}`}
+              aria-label={`${+ymd.slice(5, 7)}월 ${+ymd.slice(8, 10)}일${offSet.has(ymd) ? ', 못 가는 날' : ''}, 프로그램 ${sureItems.length}개${items.length > sureItems.length ? `, 기간 중 운영 ${items.length - sureItems.length}개` : ''}`}
               aria-pressed={ymd === sel}
             >
               <span className="cal-num">{+ymd.slice(8, 10)}</span>
@@ -174,6 +175,7 @@ export default function CalendarView({ dayFilter = [], rows, renderItem, compact
         <span><i className="cal-pill upcoming" /> 접수예정</span>
         <span><i className="cal-pill closed" /> 마감·종료</span>
         <span><i className="cal-pill soft" /> 기간 중 운영(요일 확인)</span>
+        {onToggleOff && <span><i className="cal-offmark" aria-hidden="true">✕</i> 못 가는 날</span>}
       </div>
 
       {nearest && (
@@ -187,6 +189,11 @@ export default function CalendarView({ dayFilter = [], rows, renderItem, compact
           <h3>
             {+sel.slice(5, 7)}월 {+sel.slice(8, 10)}일({DAY_LABELS[selDow]}) · 프로그램 {sorted.length}개
           </h3>
+          {onToggleOff && (
+            <button type="button" className={`off-toggle${offSet.has(sel) ? ' on' : ''}`} aria-pressed={offSet.has(sel)} onClick={() => onToggleOff(sel)}>
+              {offSet.has(sel) ? '✕ 못 가는 날 · 눌러서 해제' : '이 날 못 가요'}
+            </button>
+          )}
           {sorted.length === 0 ? (
             <p className="hint">이 날 열리는 프로그램이 없어요.</p>
           ) : (
