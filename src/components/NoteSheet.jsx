@@ -33,9 +33,12 @@ const nextSlot = (slots) => {
  * 고친 값은 항상 자동 판정보다 우선하고, 비우거나 되돌리면 자동값을 써요.
  * orig 는 서울시 원본, autoKidMatches 는 고치기 전의 자동 판정, autoDates 는 자동으로 읽은 날짜 후보(없으면 null)
  */
-export default function NoteSheet({ orig, note, kids, autoKidMatches, autoDates = null, targetInfo = {}, groupCount = 1, onSave, onClose }) {
+export default function NoteSheet({ orig, note, kids, autoKidMatches, autoDates: autoAll = null, targetInfo = {}, groupCount = 1, onSave, onClose }) {
   const win = { s: orig.classStart?.slice(0, 10) ?? null, e: orig.classEnd?.slice(0, 10) ?? null };
   const today = toYmd(new Date());
+  // "이 날짜만 숨기기"로 뺀 날짜: 자동 날짜에서 빼고 따로 보여줌(눌러서 다시 보이게)
+  const [skip, setSkip] = useState(note?.skip ?? []);
+  const autoDates = autoAll ? autoAll.filter((d) => !skip.includes(d)) : null;
   const [text, setText] = useState(note?.text ?? '');
   const [fit, setFit] = useState(note?.fit ?? {});
   const [groupFit, setGroupFit] = useState(false);
@@ -43,7 +46,7 @@ export default function NoteSheet({ orig, note, kids, autoKidMatches, autoDates 
   const [days, setDays] = useState(note?.days ?? []);
   const [weeks, setWeeks] = useState(note?.weeks ?? []);
   // 처음 열면: 내가 고른 날짜가 있으면 그것, 없으면 자동 날짜를 전부 체크한 상태로 시작
-  const [dates, setDates] = useState(() => [...(note?.dates?.length ? note.dates : autoDates ?? [])].sort());
+  const [dates, setDates] = useState(() => [...(note?.dates?.length ? note.dates : autoAll ? autoAll.filter((d) => !(note?.skip ?? []).includes(d)) : [])].sort());
   const [input, setInput] = useState('');
   const [msg, setMsg] = useState('');
   const first = dates[0] ?? (win.s && win.s > today ? win.s : today);
@@ -86,9 +89,11 @@ export default function NoteSheet({ orig, note, kids, autoKidMatches, autoDates 
   };
   const canLoadAuto = orig.timeSlots?.length > 1 || (orig.timeKnown && orig.classStart && fmtTime(orig.classStart) !== '00:00');
 
-  const resetEdits = () => { setFit({}); setSlots([]); setDays([]); setWeeks([]); setDates([...(autoDates ?? [])]); };
+  const resetEdits = () => { setFit({}); setSlots([]); setDays([]); setWeeks([]); setSkip([]); setDates([...(autoAll ?? [])]); };
+  // 숨긴 날짜를 다시 보이게: 내가 고른 날짜가 따로 없으면 자동 날짜에 다시 합쳐지고, 있으면 그 목록에 더해요
+  const restoreDate = (d) => { setSkip((s) => s.filter((x) => x !== d)); setDates((cur) => (cur.length ? [...new Set([...cur, d])].sort() : cur)); };
   const sameAsAuto = !!autoDates && dates.length === autoDates.length && dates.every((d, i) => d === autoDates[i]);
-  const anyEdit = Object.keys(fit).length > 0 || slots.length > 0 || days.length > 0 || (!!note?.dates?.length && !sameAsAuto);
+  const anyEdit = Object.keys(fit).length > 0 || slots.length > 0 || days.length > 0 || skip.length > 0 || (!!note?.dates?.length && !sameAsAuto);
 
   const addFromText = () => {
     const r = parseMyDates(input, orig);
@@ -113,6 +118,7 @@ export default function NoteSheet({ orig, note, kids, autoKidMatches, autoDates 
       slots: slots.filter((s) => s.start).map((s) => ({ start: s.start, end: s.end || null })),
       days,
       weeks,
+      skip,
     });
   const save = () => { onSave(build(), { groupFit }); onClose(); };
 
@@ -194,6 +200,17 @@ export default function NoteSheet({ orig, note, kids, autoKidMatches, autoDates 
           </>
         ) : (
           <p className="hint">자동으로 읽은 날짜가 없어요(기간 중 운영 · 요일 확인). 갈 수 있는 날을 아래 달력에서 골라 주세요.</p>
+        )}
+
+        {skip.length > 0 && (
+          <div className="date-skip">
+            <small className="hint">숨긴 날짜 · 눌러서 다시 보이게</small>
+            <div className="date-checks" role="group" aria-label="숨긴 날짜">
+              {skip.map((d) => (
+                <button key={d} type="button" className="dchip" onClick={() => restoreDate(d)}>↺ {fmtMyDate(d)}</button>
+              ))}
+            </div>
+          </div>
         )}
 
         <details className="date-add" open={!autoDates}>

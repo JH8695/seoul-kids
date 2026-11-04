@@ -28,4 +28,13 @@ r = occurrenceDates(C('2026-10-01', '2026-10-10'), null, '2026-10-01', { weekOfM
 assert.equal(r.loose, true);
 assert.equal(r.dates.length, 10);
 
+// 숨긴 날짜(excludeDates)는 반복 계산에서도, 내가 고른 날짜 목록에서도 그 날만 빠짐
+{
+  const c = { classStart: '2026-11-07T10:00:00+09:00', classEnd: '2026-11-28T12:00:00+09:00' };
+  const rep = occurrenceDates(c, SAT, '2026-11-04', { excludeDates: ['2026-11-14'] });
+  assert.deepEqual(rep.dates, ['2026-11-07', '2026-11-21', '2026-11-28']);
+  const mine = occurrenceDates(c, SAT, '2026-11-04', { dates: ['2026-11-07', '2026-11-14', '2026-11-21'], excludeDates: ['2026-11-14'] });
+  assert.deepEqual(mine.dates, ['2026-11-07', '2026-11-21']);
+}
+
 console.log('calendar.test.mjs OK');

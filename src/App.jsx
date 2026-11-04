@@ -239,6 +239,8 @@ export default function App() {
             excludeMonths: c.excludeMonths ?? null,
           };
         }
+        // "이 날짜만 숨기기"로 뺀 날짜: 어떤 날짜 계산이든(반복·읽은 날짜·내 날짜) 이 날만 빼고 나머지는 그대로
+        if (note?.skip?.length) tinfo = { ...tinfo, excludeDates: [...new Set([...(tinfo.excludeDates ?? []), ...note.skip])] };
         const online = isOnline(c);
         const titleTarget = extractTitleTarget(c.title);
 
@@ -447,15 +449,14 @@ export default function App() {
   // 되살리려면 ✎ 고치기에서 다시 체크하면 돼요(또는 숨긴 직후 "되돌리기")
   const validYmd = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
   const datesOf = (row) => {
-    if (row.note?.dates?.length) return [...row.note.dates].sort();
-    const o = occurrenceDates(row.course, row.daySet, todayYmd, row.tinfo);
-    return !o.loose && o.dates.length > 0 && o.dates.length <= 40 ? o.dates : null; // 확실한 날짜만
+    const o = occurrenceDates(row.course, row.daySet, todayYmd, row.tinfo); // row.tinfo 에는 내 날짜·이미 숨긴 날짜가 반영돼 있음
+    return !o.loose && o.dates.length > 0 ? o.dates : null; // 확실한 날짜만
   };
   const canHideDate = (row, ymd) => validYmd(ymd) && !!withoutDate(datesOf(row), ymd);
   const hideDate = (row, ymd) => {
     const rest = withoutDate(datesOf(row), ymd);
     if (!rest) return;
-    const next = cleanNote({ ...(row.note ?? {}), dates: rest });
+    const next = cleanNote({ ...(row.note ?? {}), skip: [...(row.note?.skip ?? []), ymd] });
     saveNote(row.course.id, next);
     setToast({ kind: 'date', id: row.course.id, prev: row.note ?? null, text: `${fmtMyDate(ymd)} 하루만 숨겼어요 · ${row.course.title}` });
   };
@@ -471,7 +472,11 @@ export default function App() {
     }
     const acts = [];
     if (canHideDate(row, ymd)) acts.push({ label: `${fmtMyDate(ymd)} 이 날짜만 숨기기`, onClick: () => hideDate(row, ymd) });
-    if (members.length > 1) {
+    if (members.length <= 1 && validYmd(ymd) && !canHideDate(row, ymd)) {
+      // 달력·주말 화면에서 남은 날짜가 이 날 하나뿐이면: 이 회차만 숨겨요(같은 프로그램의 새 회차는 그대로 올라옴)
+      acts.push({ label: '이 회차만 숨기기', onClick: () => hideRound(row) });
+      acts.push({ label: '프로그램 전체 관심 없어요', onClick: () => hideItem(members) });
+    } else if (members.length > 1) {
       acts.push({ label: '이 회차만 관심 없어요', onClick: () => hideRound(row) });
       acts.push({ label: '이 회차만 남기기', onClick: () => keepOnly(row) });
       acts.push({ label: '프로그램 전체 관심 없어요', onClick: () => hideItem(members) });
@@ -723,9 +728,9 @@ export default function App() {
           type="button"
           className="cal-hide"
           aria-label={showHidden ? '다시 보이게 하기' : dateHide ? `${fmtMyDate(ymd)} 이 날짜만 숨기기` : '관심 없어요 (숨기기)'}
-          title={showHidden ? '다시 보이게 하기' : dateHide ? `${fmtMyDate(ymd)} 이 날짜만 숨겨요 (다시 보이게: ✎ 고치기 → 갈 수 있는 날짜)` : '관심 없어요 · 이 회차만 숨겨요 (프로그램 전체는 카드 아래 버튼)'}
+          title={showHidden ? '다시 보이게 하기' : dateHide ? `${fmtMyDate(ymd)} 이 날짜만 숨겨요 (다시 보이게: ✎ 고치기 → 숨긴 날짜)` : validYmd(ymd) ? '남은 날짜가 이 날 하나뿐이라 이 회차를 숨겨요' : '관심 없어요 · 이 회차만 숨겨요 (프로그램 전체는 카드 아래 버튼)'}
           disabled={showHidden && autoHidden(e)}
-          onClick={() => (dateHide ? hideDate(e, ymd) : showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : roundsOf(e).length > 1 ? hideRound(e) : hideItem([e]))}
+          onClick={() => (dateHide ? hideDate(e, ymd) : showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : roundsOf(e).length > 1 || validYmd(ymd) ? hideRound(e) : hideItem([e]))}
         >
           {showHidden ? '↺' : '✕'}
         </button>
@@ -1067,7 +1072,7 @@ export default function App() {
   // 정보 고치기 화면에 줄 것: 내 날짜를 빼고 다시 계산한 "자동 날짜" 후보, 읽은 대상 문구, 같은 프로그램의 회차들
   const noteExtra = noteRow
     ? (() => {
-        const base = noteRow.note ? (({ dates, ...rest }) => rest)(noteRow.note) : null; // eslint-disable-line no-unused-vars
+        const base = noteRow.note ? (({ dates, skip, ...rest }) => rest)(noteRow.note) : null; // eslint-disable-line no-unused-vars
         const r = buildRow(noteRow.orig, base && Object.keys(base).length ? base : null);
         const o = occurrenceDates(r.course, r.daySet, todayYmd, r.tinfo);
         return {

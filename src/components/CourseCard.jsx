@@ -3,7 +3,7 @@ import { fmtClassSchedule, fmtDate, fmtDateTime, fmtTime, daysUntil } from '../l
 import { CATEGORIES } from '../data/config';
 import { REASON_LABEL } from '../lib/audience';
 import { TRUST_TEXT, TRUST_TITLE } from '../lib/dateTrust';
-import { applyEvent, copyTextFor } from '../lib/ics';
+import { canCopyApply, copyTextFor } from '../lib/ics';
 import { fmtMyDate } from '../lib/mydates';
 
 const STATUS = {
@@ -77,7 +77,7 @@ export default function CourseCard({
   const closedText = closed.length ? `${closed.slice(0, 4).map(fmtMyDate).join(' · ')}${closed.length > 4 ? ' …' : ''}` : '';
   // 복사해서 캘린더 앱에 붙여넣을 일정: 앞으로 올 접수 시작, 그리고 이용 일정
   const copyBtns = [];
-  if (applyEvent(course)) copyBtns.push({ key: 'apply', label: '접수 일정 복사', text: () => copyTextFor('apply', course) });
+  if (canCopyApply(course)) copyBtns.push({ key: 'apply', label: '접수 일정 복사', text: () => copyTextFor('apply', course) });
   if (focusYmd || course.datesList?.length) copyBtns.push({ key: 'use', label: '이용 일정 복사', text: () => copyTextFor('use', course, { dates: course.datesList ?? [], focusYmd }) });
   const doCopy = async (g) => {
     const text = g.text();

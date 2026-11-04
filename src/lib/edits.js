@@ -7,6 +7,7 @@
 //     fit:   { [아이id]: 'yes' | 'no' },  // 대상: 아이별로 "해당" / "해당 안 됨" (없으면 자동)
 //     slots: [{ start: '14:00', end: '15:30' | null }, ...],  // 시간대(하루 여러 회차면 여러 개). 예전의 time 한 쌍도 읽어 줌
 //     days:  [6],  weeks: [2, 3],         // 요일 (+ 몇째 주)
+//     skip:  ['2026-11-21', ...],         // 숨긴 날짜("이 날짜만 숨기기"): 자동 날짜에서 이 날만 빼고 나머지는 그대로 따라감
 //   }
 // 고친 값이 항상 자동 판정보다 우선해요.
 
@@ -21,6 +22,8 @@ export function cleanNote(raw) {
   if (text) out.text = text;
   const dates = Array.isArray(raw.dates) ? [...new Set(raw.dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort() : [];
   if (dates.length) out.dates = dates;
+  const skip = Array.isArray(raw.skip) ? [...new Set(raw.skip.filter((d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(-120) : [];
+  if (skip.length) out.skip = skip;
   if (raw.fit && typeof raw.fit === 'object') {
     const fit = {};
     for (const [id, v] of Object.entries(raw.fit)) if (v === 'yes' || v === 'no') fit[id] = v;

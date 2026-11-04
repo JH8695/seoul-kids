@@ -80,4 +80,10 @@ assert.equal(daysLabel([6]), '토요일');
 assert.equal(daysLabel([6, 0]), '토·일');
 assert.equal(daysLabel([6], [2, 3]), '2·3째주 토');
 
+// ---- skip: "이 날짜만 숨기기" 로 뺀 날짜 ----
+assert.deepEqual(cleanNote({ skip: ['2026-11-21', '2026-11-07', '2026-11-21', 'x', 5, '2026-1-1'] }), { skip: ['2026-11-07', '2026-11-21'] });
+assert.deepEqual(cleanNote({ text: '메모', skip: ['2026-11-21'] }), { text: '메모', skip: ['2026-11-21'] }); // 다른 값과 같이 보존
+assert.equal(cleanNote({ skip: ['abc'] }), null); // 이상한 값만 있으면 비움
+assert.equal(cleanNote({ skip: Array.from({ length: 300 }, (_, i) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10)) }).skip.length, 120); // 최대 120개(최근 것)
+
 console.log('edits.test.mjs OK');
