@@ -853,7 +853,7 @@ export default function App() {
   const setTravel = (patch) => setSettings({ ...settings, travel: { ...travel, ...patch } });
   const travelSeg = (mode, label, opts) => (
     <div className="seg" role="group" aria-label={label}>
-      <button type="button" className={!travel[mode] ? 'on' : ''} onClick={() => setTravel({ [mode]: null })}>전체</button>
+      <button type="button" className={!travel[mode] ? 'on' : ''} onClick={() => setTravel({ [mode]: null })}>안 씀</button>
       {opts.map(([v, t]) => (
         <button key={v} type="button" className={travel[mode] === v ? 'on' : ''} aria-pressed={travel[mode] === v} onClick={() => setTravel({ [mode]: travel[mode] === v ? null : v })}>{t}</button>
       ))}
@@ -876,7 +876,7 @@ export default function App() {
     </div>
   );
   const travelHint = travelOn ? (
-    <p className="tv-hint">센터별 시간을 직접 입력해 둔 곳만 보여요{travelUnset > 0 ? ` (시간 미입력 ${travelUnset}곳 제외 · 센터 목록에서 입력)` : ''}. 온라인 프로그램은 그대로 보여요.</p>
+    <p className="tv-hint">{travel.transit && travel.car ? '둘 다 고르면 하나라도 맞는 센터를 보여줘요. ' : ''}센터별 시간을 직접 입력해 둔 곳만 보여요{travelUnset > 0 ? ` (시간 미입력 ${travelUnset}곳 제외 · 센터 목록에서 입력)` : ''}. 온라인 프로그램은 그대로 보여요.</p>
   ) : null;
   const travelText = [travel.transit ? `🚇 ${travel.transit === 60 ? '1시간' : '30분'}` : '', travel.car ? `🚗 ${travel.car}분` : ''].filter(Boolean).join(' · ');
   // 필터를 접었을 때 보여주는 한 줄 요약: 기본값이 아닌 것만 진하게
@@ -884,7 +884,7 @@ export default function App() {
     { k: 'cats', on: cats.length > 0, text: cats.length ? cats.map((id) => CATEGORIES.find((c) => c.id === id)?.label).filter(Boolean).join('·') : '분야 전체' },
     { k: 'kids', on: activeIds.length !== kids.length || (bothKids && activeIds.length > 1), text: `${kids.filter((k) => activeIds.includes(k.id)).map((k) => k.label).join('·') || '아이 없음'}${bothKids && activeIds.length > 1 ? ' (둘 다)' : ''}` },
     { k: 'area', on: scope === 'all', text: scope === 'near' ? (settings.areas.length > 1 ? `${settings.areas[0]} 외 ${settings.areas.length - 1}곳` : settings.areas[0] ?? '구 선택 없음') : '서울 전체' },
-    { k: 'travel', on: travelOn, text: travelOn ? `이동 ${travelText}` : '이동 전체' },
+    { k: 'travel', on: travelOn, text: travelOn ? `이동 ${travelText}${travel.transit && travel.car ? ' (하나라도)' : ''}` : '이동 안 씀' },
     { k: 'days', on: !allDays, text: allDays ? '요일 전체' : DAY_ORDER.filter((d) => days.includes(d)).map((d) => DAY_LABELS[d]).join('·') },
   ];
   const checkLabels = (
