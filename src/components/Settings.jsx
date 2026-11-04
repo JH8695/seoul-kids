@@ -6,6 +6,16 @@ import PlacesList from './PlacesList';
 import HideWords from './HideWords';
 import { buildExport, buildShareLink, parseImport } from '../lib/backup';
 
+// 접을 수 있는 묶음: 제목 + (접혀 있어도 보이는) 지금 값 요약
+function Fold({ title, summary, defaultOpen = false, children }) {
+  return (
+    <details className="set-fold" open={defaultOpen}>
+      <summary><span className="set-title">{title}</span>{summary ? <span className="set-sum">{summary}</span> : null}</summary>
+      <div className="set-body">{children}</div>
+    </details>
+  );
+}
+
 const YEARS = [];
 for (let y = 2012; y <= 2025; y++) YEARS.push(y);
 
@@ -54,14 +64,21 @@ export default function Settings({ settings, setSettings, wordCounts, now, sync,
       kids: [...settings.kids, { id: `k${Date.now()}`, label: `아이${settings.kids.length + 1}`, birthYear: 2019 }],
     });
 
+  const placeVals = Object.values(settings.places ?? {});
+  const favN = placeVals.filter((v) => v?.s === 'fav').length;
+  const hideN = placeVals.filter((v) => v?.s === 'hide').length;
+  const words = settings.hideWords ?? [];
+  const busyN = (settings.busy ?? []).length;
+  const syncSum = !sync ? '' : sync.user ? `${sync.user.email ?? sync.user.name} · ${{ syncing: '동기화 중', ok: '동기화됨', offline: '오프라인', loading: '연결 중' }[sync.phase] ?? ''}` : '로그인 안 함';
+
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet tall" role="dialog" aria-label="설정" onClick={(e) => e.stopPropagation()}>
         <h2>우리 아이 설정</h2>
 
         {sync && (
+          <Fold title="☁️ 폰·PC 동기화" summary={syncSum}>
           <section className="sync-box">
-            <h3>☁️ 폰·PC 동기화 (Google)</h3>
             {sync.user ? (
               <>
                 <p className="sync-user">{sync.user.name} <small>{sync.user.email}</small></p>
@@ -85,8 +102,26 @@ export default function Settings({ settings, setSettings, wordCounts, now, sync,
               </>
             )}
           </section>
+          </Fold>
         )}
 
+        <Fold title="🙈 숨길 단어" summary={words.length ? `${words.slice(0, 2).join(', ')}${words.length > 2 ? ` 외 ${words.length - 2}개` : ''}` : '없음'}>
+          <HideWords settings={settings} setSettings={setSettings} wordCounts={wordCounts} />
+        </Fold>
+
+        <Fold title="⏰ 갈 수 없는 시간" summary={busyN ? `${busyN}개` : '없음'}>
+          <BusyTimes settings={settings} setSettings={setSettings} />
+        </Fold>
+
+        <Fold title="📍 관심·제외 센터" summary={`관심 ${favN} · 제외 ${hideN}`}>
+          <PlacesList settings={settings} setSettings={setSettings} />
+        </Fold>
+
+        <Fold title="🗺️ 선택할 구" summary={settings.areas.length ? (settings.areas.length > 1 ? `${settings.areas[0]} 외 ${settings.areas.length - 1}곳` : settings.areas[0]) : '선택 없음'}>
+          <AreaPicker settings={settings} setSettings={setSettings} />
+        </Fold>
+
+        <Fold title="👧 아이" summary={settings.kids.map((k) => `${k.label} ${k.birthYear}`).join(' · ')}>
         <div className="ed-list">
           {settings.kids.map((k) => (
             <div className="ed-row" key={k.id}>
@@ -123,14 +158,7 @@ export default function Settings({ settings, setSettings, wordCounts, now, sync,
         <p className="hint">
           학년은 3월에 올라가요. 각 프로그램은 <strong>이용이 시작되는 날의 학년</strong>으로 대상을 판단해요.
         </p>
-
-        <AreaPicker settings={settings} setSettings={setSettings} />
-
-        <PlacesList settings={settings} setSettings={setSettings} />
-
-        <HideWords settings={settings} setSettings={setSettings} wordCounts={wordCounts} />
-
-        <BusyTimes settings={settings} setSettings={setSettings} />
+        </Fold>
 
         {(settings.hidden?.length ?? 0) > 0 && (
           <button className="outline" onClick={() => setSettings({ ...settings, hidden: [] })}>
@@ -138,8 +166,8 @@ export default function Settings({ settings, setSettings, wordCounts, now, sync,
           </button>
         )}
 
-        <details className="backup">
-          <summary>다른 기기로 옮기기 (내보내기 / 가져오기)</summary>
+        <details className="backup set-fold">
+          <summary><span className="set-title">📤 다른 기기로 옮기기</span><span className="set-sum">내보내기 · 가져오기</span></summary>
           <div className="backup-body">
             <p className="hint">설정, 찜, 숨긴 것, 메모를 글 하나로 옮겨요. 폰에서 내보내서 PC에 가져오는 식으로 쓰세요.</p>
             <button className="outline" onClick={doShareLink}>합치기 링크 복사 (다른 기기에서 열면 합쳐요)</button>

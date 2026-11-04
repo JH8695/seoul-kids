@@ -8,6 +8,7 @@ import { compareAreas } from './lib/areas';
 import { fmtDate, fmtFetchedAt, fmtStartTime, fmtTime, daysUntil } from './lib/format';
 import { classifyBusy, cleanBusy } from './lib/busy';
 import { cleanOffDays, toggleOffDay } from './lib/offDays';
+import { fmtMyDate, withoutDate } from './lib/mydates';
 import { cleanPlaces, cleanTravel, listPlaces, passesTravel, placeKeyOf, placeMemoOf, placeName, placeState, shortPlaceName, timesText, withPlace, withPlaceMemo, withPlaceTimes } from './lib/places';
 import { addRecent, cleanSearches, removeTerm, togglePin } from './lib/searches';
 import { isNewId, updateSeen } from './lib/firstSeen';
@@ -29,6 +30,7 @@ import PlacesPage from './components/PlacesPage';
 import CenterPopup from './components/CenterPopup';
 import Settings from './components/Settings';
 import CalendarView from './components/CalendarView';
+import WeekendView from './components/WeekendView';
 import AppSwitcher from './components/AppSwitcher';
 import AreaGroup from './components/AreaGroup';
 import AreaPicker from './components/AreaPicker';
@@ -74,7 +76,8 @@ export default function App() {
 
   const [tab, setTab] = useState('all');
   const [sort, setSort] = useState('area'); // 항상 "가까운 구 순"으로 시작
-  const [view, setView] = useState('list'); // 폰 하단 탭: calendar | list (처음엔 목록)
+  const [view, setView] = useState('list'); // 폰 하단 탭: calendar | list | weekend (처음엔 목록)
+  const [pcWeekend, setPcWeekend] = useState(false); // PC: 오른쪽 달력 자리에 "주말" 화면을 보여줄지
   const [cats, setCats] = useState([]);
   const [showClosed, setShowClosed] = useState(false);
   const [showAllTargets, setShowAllTargets] = useState(false);
@@ -88,6 +91,13 @@ export default function App() {
   const [filtersOpen, setFiltersOpen] = useState(() => { try { return localStorage.getItem(FILTERS_KEY) !== '0'; } catch { return true; } });
   const toggleFilters = () => setFiltersOpen((v) => {
     try { localStorage.setItem(FILTERS_KEY, v ? '0' : '1'); } catch { /* 저장 불가 환경 */ }
+    return !v;
+  });
+  // 아이·요일·지역·이동은 자주 안 바꾸니까 "조건" 한 줄 요약으로 접어 두고, 바꿀 때만 펼침(기억함)
+  const COND_KEY = 'seoulkids:condOpen';
+  const [condOpen, setCondOpen] = useState(() => { try { return localStorage.getItem(COND_KEY) === '1'; } catch { return false; } });
+  const toggleCond = () => setCondOpen((v) => {
+    try { localStorage.setItem(COND_KEY, v ? '0' : '1'); } catch { /* 저장 불가 환경 */ }
     return !v;
   });
   const [placesOpen, setPlacesOpen] = useState(false); // 센터 목록 페이지
@@ -433,8 +443,25 @@ export default function App() {
       return { ...s, notes: n };
     });
 
+  // 이 날짜만 숨기기: 달력에서 고른 날짜 하루만 뺌. "고치기"의 "갈 수 있는 날짜"에서 그 날짜를 해제하는 지름길이라,
+  // 되살리려면 ✎ 고치기에서 다시 체크하면 돼요(또는 숨긴 직후 "되돌리기")
+  const validYmd = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+  const datesOf = (row) => {
+    if (row.note?.dates?.length) return [...row.note.dates].sort();
+    const o = occurrenceDates(row.course, row.daySet, todayYmd, row.tinfo);
+    return !o.loose && o.dates.length > 0 && o.dates.length <= 40 ? o.dates : null; // 확실한 날짜만
+  };
+  const canHideDate = (row, ymd) => validYmd(ymd) && !!withoutDate(datesOf(row), ymd);
+  const hideDate = (row, ymd) => {
+    const rest = withoutDate(datesOf(row), ymd);
+    if (!rest) return;
+    const next = cleanNote({ ...(row.note ?? {}), dates: rest });
+    saveNote(row.course.id, next);
+    setToast({ kind: 'date', id: row.course.id, prev: row.note ?? null, text: `${fmtMyDate(ymd)} 하루만 숨겼어요 · ${row.course.title}` });
+  };
+
   // 카드 맨 아래 버튼들: 보통은 숨기기, "숨긴 것 다시 보기"에서는 되살리기
-  const actionsFor = (row, members) => {
+  const actionsFor = (row, members, ymd = null) => {
     const hk = hiddenKind(row);
     if (showHidden && (hk === 'busy' || hk === 'place' || hk === 'word')) return []; // 설정의 "갈 수 없는 시간"·제외 장소로 숨겨진 것
     if (showHidden) {
@@ -443,6 +470,7 @@ export default function App() {
         : [{ label: '이 회차만 숨기기 취소', onClick: () => unhideRounds([row.course.id]) }];
     }
     const acts = [];
+    if (canHideDate(row, ymd)) acts.push({ label: `${fmtMyDate(ymd)} 이 날짜만 숨기기`, onClick: () => hideDate(row, ymd) });
     if (members.length > 1) {
       acts.push({ label: '이 회차만 관심 없어요', onClick: () => hideRound(row) });
       acts.push({ label: '이 회차만 남기기', onClick: () => keepOnly(row) });
@@ -614,7 +642,7 @@ export default function App() {
     return m;
   }, [enriched, todayYmd]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const renderCard = (e) => (
+  const renderCard = (e, ymd = null) => (
     <CourseCard
       key={e.course.id}
       course={e.course}
@@ -634,7 +662,7 @@ export default function App() {
       imageSchedule={e.imageSchedule}
       edits={e.edits}
       onGoCalendar={focusCalendar}
-      actions={actionsFor(e, [e])}
+      actions={actionsFor(e, [e], ymd)}
       note={e.note}
       onNote={() => setNoteFor(e.course.id)}
       placeSt={e.placeSt}
@@ -666,8 +694,9 @@ export default function App() {
       renderCard(it.members[0])
     );
 
-  const renderCompact = (e) => {
+  const renderCompact = (e, ymd = null) => {
     const c = e.course;
+    const dateHide = !showHidden && canHideDate(e, ymd); // 달력에서 고른 날짜 하루만 숨길 수 있는 경우
     const time = fmtStartTime(c);
     return (
       <div key={c.id} className="cal-row-wrap">
@@ -693,10 +722,10 @@ export default function App() {
         <button
           type="button"
           className="cal-hide"
-          aria-label={showHidden ? '다시 보이게 하기' : '관심 없어요 (숨기기)'}
-          title={showHidden ? '다시 보이게 하기' : '관심 없어요 · 이 회차만 숨겨요 (프로그램 전체는 카드 아래 버튼)'}
+          aria-label={showHidden ? '다시 보이게 하기' : dateHide ? `${fmtMyDate(ymd)} 이 날짜만 숨기기` : '관심 없어요 (숨기기)'}
+          title={showHidden ? '다시 보이게 하기' : dateHide ? `${fmtMyDate(ymd)} 이 날짜만 숨겨요 (다시 보이게: ✎ 고치기 → 갈 수 있는 날짜)` : '관심 없어요 · 이 회차만 숨겨요 (프로그램 전체는 카드 아래 버튼)'}
           disabled={showHidden && autoHidden(e)}
-          onClick={() => (showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : roundsOf(e).length > 1 ? hideRound(e) : hideItem([e]))}
+          onClick={() => (dateHide ? hideDate(e, ymd) : showHidden ? (hiddenKind(e) === 'group' ? unhide(e.groupKey) : unhideRounds([e.course.id])) : roundsOf(e).length > 1 ? hideRound(e) : hideItem([e]))}
         >
           {showHidden ? '↺' : '✕'}
         </button>
@@ -811,6 +840,9 @@ export default function App() {
       })}
       {bothEl}
     </div>
+  );
+  const weekendBtn = (
+    <button type="button" className={`fbtn${pcWeekend ? ' on' : ''}`} aria-pressed={pcWeekend} title="오늘부터 5번의 주말(토·일) 프로그램 모아보기" onClick={() => setPcWeekend((v) => !v)}>📅 주말</button>
   );
   const placesBtn = (
     <button type="button" className="fbtn" onClick={() => setPlacesOpen(true)}>📍 센터 목록</button>
@@ -1084,7 +1116,7 @@ export default function App() {
         <nav className="filters toolbar tb2" aria-label="필터">
           <div className="tb-row">
             {searchEl}
-            <div className="quick" role="group" aria-label="바로가기">{favBtn}{placeBtn}{placesBtn}</div>
+            <div className="quick" role="group" aria-label="바로가기">{favBtn}{placeBtn}{weekendBtn}{placesBtn}</div>
             {optionsEl}
           </div>
           <div className="tb-row tb-status">
@@ -1097,10 +1129,23 @@ export default function App() {
           {filtersOpen ? (
             <div className="tb-grid">
               <div className="fgroup wide"><span className="flabel">분야</span>{catsEl}</div>
-              <div className="fgroup"><span className="flabel">아이</span>{kidsEl}</div>
-              <div className="fgroup"><span className="flabel">요일</span>{daysEl}</div>
-              <div className="fgroup wide"><span className="flabel">지역</span>{scopeSeg}{hintEl}</div>
-              <div className="fgroup wide"><span className="flabel">이동</span><div className="travel-wrap">{travelEl}{travelHint}</div></div>
+              <div className="fgroup cond">
+                <span className="flabel">조건</span>
+                <button type="button" className="cond-sum" aria-expanded={condOpen} onClick={toggleCond} aria-label={`아이·요일·지역·이동 조건 ${condOpen ? '접기' : '펼쳐서 바꾸기'}`}>
+                  <span className="cond-pills">
+                    {['kids', 'days', 'area', 'travel'].map((k) => sumItems.find((x) => x.k === k)).map((x) => (<span key={x.k} className={`sum-pill${x.on ? ' on' : ''}`}>{x.text}</span>))}
+                  </span>
+                  <span className="cond-go">{condOpen ? '접기 ▴' : '바꾸기 ▾'}</span>
+                </button>
+              </div>
+              {condOpen && (
+                <>
+                  <div className="fgroup sub"><span className="flabel">아이</span>{kidsEl}</div>
+                  <div className="fgroup sub"><span className="flabel">요일</span>{daysEl}</div>
+                  <div className="fgroup sub"><span className="flabel">지역</span>{scopeSeg}{hintEl}</div>
+                  <div className="fgroup sub"><span className="flabel">이동</span><div className="travel-wrap">{travelEl}{travelHint}</div></div>
+                </>
+              )}
             </div>
           ) : (
             <button type="button" className="tb-summary" onClick={toggleFilters} aria-label="필터 펼치기">
@@ -1195,8 +1240,8 @@ export default function App() {
 
         {isDesktop ? (
           <div className="pane-right">
-            <section className="pane-cal" aria-label="달력">
-              <CalendarView offDays={offDays} onToggleOff={toggleOff} dayFilter={effDays} rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
+            <section className="pane-cal" aria-label={pcWeekend ? '주말' : '달력'}>
+              {pcWeekend ? <WeekendView rows={list} renderItem={renderCompact} dayFilter={effDays} offDays={offDays} /> : <CalendarView offDays={offDays} onToggleOff={toggleOff} dayFilter={effDays} rows={list} renderItem={renderCompact} compact groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />}
             </section>
           </div>
         ) : (
@@ -1205,6 +1250,11 @@ export default function App() {
               <CalendarView offDays={offDays} onToggleOff={toggleOff} dayFilter={effDays} rows={list} renderItem={renderCard} groupByArea={sort === 'area'} collapsed={collapsedAreas} onToggleArea={toggleAreaCollapse} focusDate={calendarFocus} />
             </section>
           )
+        )}
+      {!isDesktop && view === 'weekend' && (
+          <section className="pane-cal-m" aria-label="주말">
+            <WeekendView rows={list} renderItem={renderCompact} dayFilter={effDays} offDays={offDays} />
+          </section>
         )}
       </main>
 
@@ -1216,6 +1266,7 @@ export default function App() {
         <div className="viewbar">
           <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')}>달력</button>
           <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>목록</button>
+          <button className={view === 'weekend' ? 'on' : ''} onClick={() => setView('weekend')}>주말</button>
           <button className={placesOpen ? 'on' : ''} onClick={() => setPlacesOpen(true)}>센터</button>
         </div>
       )}
@@ -1228,6 +1279,7 @@ export default function App() {
             onClick={() => {
               if (toast.kind === 'group') unhide(toast.key);
               else if (toast.kind === 'place') setSettings((cur) => ({ ...cur, places: withPlace(cleanPlaces(cur.places), toast.key, toast.name, toast.prev) }));
+              else if (toast.kind === 'date') saveNote(toast.id, toast.prev);
               else unhideRounds(toast.ids);
               setToast(null);
             }}

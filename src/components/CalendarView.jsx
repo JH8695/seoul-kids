@@ -89,7 +89,7 @@ export default function CalendarView({ dayFilter = [], rows, renderItem, compact
   const itemsClass = compact ? 'cal-rows' : 'cal-day-list';
   // 가까운 구 순 정렬일 때는 구 제목 아래로 묶어 접고 펼 수 있게(목록과 같은 접힘 상태)
   const renderRows = (list) => {
-    if (!groupByArea) return <div className={itemsClass}>{list.map((r) => renderItem(r))}</div>;
+    if (!groupByArea) return <div className={itemsClass}>{list.map((r) => renderItem(r, sel))}</div>;
     const m = new Map();
     list.forEach((r) => {
       const a = r.course.area || '';
@@ -100,7 +100,7 @@ export default function CalendarView({ dayFilter = [], rows, renderItem, compact
       .sort(([a], [b]) => compareAreas(a, b))
       .map(([a, rs]) => (
         <AreaGroup key={a || 'none'} area={a} count={rs.length} collapsed={collapsed.has(a)} onToggle={onToggleArea} itemsClass={itemsClass}>
-          {rs.map((r) => renderItem(r))}
+          {rs.map((r) => renderItem(r, sel))}
         </AreaGroup>
       ));
   };

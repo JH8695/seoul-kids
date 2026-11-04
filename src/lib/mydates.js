@@ -29,6 +29,15 @@ const MD = String.raw`(\d{1,2})\s*[\/.월]\s*(\d{1,2})\s*일?`;
 const RANGE = new RegExp(String.raw`${MD}\s*[~～\-]\s*(?:(\d{1,2})\s*[\/.월]\s*)?(\d{1,2})\s*일?`, 'g');
 const SINGLE = new RegExp(MD, 'g');
 
+/**
+ * "이 날짜만 숨기기": 날짜 목록에서 한 날짜만 뺀 새 목록. 뺄 수 없으면 null
+ * (그 날짜가 목록에 없거나, 날짜가 하나뿐이라 빼면 아무것도 안 남을 때 — 그때는 회차·프로그램 숨기기를 써요)
+ */
+export function withoutDate(dates, ymd) {
+  if (!Array.isArray(dates) || dates.length < 2 || !dates.includes(ymd)) return null;
+  return dates.filter((d) => d !== ymd).sort();
+}
+
 /** @returns { dates: {ymd, outside}[], bad: string } */
 export function parseMyDates(text, course, nowYear = new Date().getFullYear()) {
   const win = { s: course.classStart?.slice(0, 10) ?? null, e: course.classEnd?.slice(0, 10) ?? null };

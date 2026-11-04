@@ -300,7 +300,7 @@ i.cal-pill { min-width: 12px; height: 12px; line-height: 12px; padding: 0; verti
 .area-grid label.on { background: var(--open-bg); border-color: var(--open); color: var(--open); font-weight: 600; }
 .area-grid input { margin: 0; }
 
-.viewbar { grid-template-columns: repeat(3, 1fr); }
+.viewbar { grid-template-columns: repeat(4, 1fr); }
 @media (min-width: 900px) {
   .pane-right .pane-cal { max-height: none; flex: 1 1 0; min-height: 0; }
 }
@@ -772,3 +772,56 @@ body { overflow-x: hidden; }
 .pl-travel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .pl-travel .tv-pair .seg button { padding: 6px 10px; font-size: 13px; }
 .pl-travel .tv-hint { font-size: 12px; color: var(--muted); }
+
+@media (min-width: 900px) {
+  /* 조건 한 줄 요약(아이·요일·지역·이동) + 펼침 */
+  .fgroup.cond { padding: 6px 2px; }
+  .cond-sum { display: flex; align-items: center; gap: 10px; flex: 1 1 0; min-width: 0; border: 0; background: transparent; padding: 4px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .cond-pills { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
+  .cond-sum .sum-pill { font-size: 13px; padding: 4px 11px; }
+  .cond-go { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--home); white-space: nowrap; }
+  .fgroup.sub { padding-left: 14px; background: var(--closed-bg); border-radius: 8px; margin: 2px 0; }
+  .fgroup.sub + .fgroup.sub { border-top: 0; }
+}
+
+/* 설정 창: 접을 수 있는 묶음 (접혀 있어도 지금 값을 한 줄로 보여줌) */
+.set-fold { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.set-fold > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 11px 12px; list-style: none; min-width: 0; }
+.set-fold > summary::-webkit-details-marker { display: none; }
+.set-fold > summary::after { content: '▾'; flex: 0 0 auto; margin-left: auto; color: var(--muted); font-size: 13px; }
+.set-fold[open] > summary::after { content: '▴'; }
+.set-fold[open] > summary { border-bottom: 1px solid var(--line); }
+.set-title { flex: 0 0 auto; font-weight: 700; font-size: 14.5px; }
+.set-sum { flex: 0 1 auto; min-width: 0; margin-left: 6px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-body { display: grid; gap: 10px; padding: 10px 12px 12px; }
+.set-body > .busy-box, .set-body > .sync-box { margin: 0; border: 0; padding: 0; background: transparent; }
+.set-body .busy-box > h3, .set-body .areas > legend { display: none; } /* 제목은 접는 줄에 이미 있음 */
+.set-body .areas { border: 0; padding: 0; margin: 0; min-width: 0; }
+.sheet .set-fold + .set-fold, .sheet .set-fold + .backup { margin-top: 0; }
+
+.backup.set-fold { padding: 0; }
+.backup.set-fold > summary { padding: 11px 12px; font-size: 14.5px; }
+.backup.set-fold .backup-body { padding: 10px 12px 12px; }
+
+/* 주말 화면 */
+.wk { display: grid; gap: 14px; min-width: 0; }
+.wk-note { margin: 0; font-size: 12.5px; color: var(--muted); }
+.wk-block { display: grid; gap: 8px; min-width: 0; }
+.wk-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 8px 2px 4px; border-bottom: 2px solid var(--ink); }
+.wk-name { font-size: 17px; font-weight: 800; }
+.wk-range { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.wk-n { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.wk-daybox { display: grid; gap: 6px; min-width: 0; }
+.wk-day { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: 14px; font-weight: 700; }
+.wk-day.sat { color: #1d4ed8; }
+.wk-day.sun { color: #c0392b; }
+.wk-dn { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted); }
+.wk-off { font-size: 12px; font-weight: 700; color: #a5281b; background: #fdecea; border-radius: 999px; padding: 1px 8px; }
+.wk-none { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+details.wk-daybox.off > summary { cursor: pointer; list-style: none; }
+details.wk-daybox.off > summary::-webkit-details-marker { display: none; }
+details.wk-daybox.off[open] > summary { margin-bottom: 6px; }
+details.wk-daybox.off { opacity: .8; }
+@media (min-width: 900px) {
+  .quick > .fbtn.on { background: var(--ink); color: var(--bg); }
+}
